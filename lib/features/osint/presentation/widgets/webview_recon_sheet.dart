@@ -34,14 +34,15 @@ class WebViewReconSheet extends StatefulWidget {
       return;
     }
 
+    final p = PanoptesPalette.of(context);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: PanoptesColors.obsidian,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-        side: BorderSide(color: PanoptesColors.borderCrimson, width: 1),
+      backgroundColor: p.obsidian,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+        side: BorderSide(color: p.borderCrimson, width: 1),
       ),
       builder: (_) => FractionallySizedBox(
         heightFactor: 0.92,
@@ -138,15 +139,16 @@ class _WebViewReconSheetState extends State<WebViewReconSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final p = PanoptesPalette.of(context);
     return Column(
       children: [
         // Tactical Header Bar
         Container(
-          padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-          decoration: const BoxDecoration(
-            color: PanoptesColors.surfaceCard,
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          decoration: BoxDecoration(
+            color: p.surfaceCard,
             border: Border(
-              bottom: BorderSide(color: PanoptesColors.borderSubtle, width: 1),
+              bottom: BorderSide(color: p.borderSubtle, width: 1),
             ),
           ),
           child: Row(
@@ -161,9 +163,9 @@ class _WebViewReconSheetState extends State<WebViewReconSheet> {
                       widget.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: PanoptesColors.textPrimary,
-                        fontSize: 13,
+                      style: TextStyle(
+                        color: p.textPrimary,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -171,9 +173,9 @@ class _WebViewReconSheetState extends State<WebViewReconSheet> {
                       _currentUrl,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: PanoptesColors.textMuted,
-                        fontSize: 10.5,
+                      style: TextStyle(
+                        color: p.textMuted,
+                        fontSize: 10,
                         fontFamily: 'monospace',
                       ),
                     ),
@@ -182,102 +184,115 @@ class _WebViewReconSheetState extends State<WebViewReconSheet> {
               ),
               IconButton(
                 tooltip: 'DOM Görsel & Link Yakala',
+                visualDensity: VisualDensity.compact,
                 onPressed: _extractDomIntelligence,
-                icon: const Icon(Icons.auto_awesome_mosaic_outlined, size: 20, color: PanoptesColors.crimson),
+                icon: const Icon(
+                  Icons.auto_awesome_mosaic_outlined,
+                  size: 19,
+                  color: PanoptesColors.crimson,
+                ),
               ),
               IconButton(
                 tooltip: 'Dış Tarayıcıda Aç',
+                visualDensity: VisualDensity.compact,
                 onPressed: () async {
                   final uri = Uri.tryParse(_currentUrl);
                   if (uri != null) {
                     await launchUrl(uri, mode: LaunchMode.externalApplication);
                   }
                 },
-                icon: const Icon(Icons.open_in_new, size: 19, color: PanoptesColors.textSecondary),
+                icon: Icon(Icons.open_in_new, size: 18, color: p.textSecondary),
               ),
               IconButton(
                 tooltip: 'Kapat',
+                visualDensity: VisualDensity.compact,
                 onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close, size: 20, color: PanoptesColors.textPrimary),
+                icon: Icon(Icons.close, size: 19, color: p.textPrimary),
               ),
             ],
           ),
         ),
         if (_isLoading)
-          const LinearProgressIndicator(
+          LinearProgressIndicator(
             minHeight: 2,
             color: PanoptesColors.crimson,
-            backgroundColor: PanoptesColors.surfaceBase,
+            backgroundColor: p.surfaceBase,
           ),
 
         // Quick Engine Switcher Bar (Yandex / Google Lens / Bing / TinEye)
         Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: const BoxDecoration(
-            color: PanoptesColors.surfaceBase,
-            border: Border(bottom: BorderSide(color: PanoptesColors.borderSubtle, width: 1)),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: p.surfaceBase,
+            border: Border(bottom: BorderSide(color: p.borderSubtle, width: 1)),
           ),
-          child: ListView(
+          child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            children: [
-              _QuickEngineChip(
-                label: 'DOM Yakala (${_capturedImages.length + _capturedLinks.length})',
-                active: _showCapturedDrawer,
-                onTap: _extractDomIntelligence,
-              ),
-              _QuickEngineChip(
-                label: 'Yandex Görsel',
-                active: _currentUrl.contains('yandex'),
-                onTap: () => _controller.loadRequest(Uri.parse('https://yandex.com.tr/images/')),
-              ),
-              _QuickEngineChip(
-                label: 'Google Görsel',
-                active: _currentUrl.contains('google'),
-                onTap: () => _controller.loadRequest(Uri.parse('https://images.google.com/')),
-              ),
-              _QuickEngineChip(
-                label: 'Bing Visual',
-                active: _currentUrl.contains('bing.com'),
-                onTap: () => _controller.loadRequest(Uri.parse('https://www.bing.com/visualsearch')),
-              ),
-              _QuickEngineChip(
-                label: 'TinEye',
-                active: _currentUrl.contains('tineye.com'),
-                onTap: () => _controller.loadRequest(Uri.parse('https://tineye.com/')),
-              ),
-            ],
+            child: Row(
+              children: [
+                _QuickEngineChip(
+                  label: 'DOM Yakala (${_capturedImages.length + _capturedLinks.length})',
+                  active: _showCapturedDrawer,
+                  onTap: _extractDomIntelligence,
+                ),
+                _QuickEngineChip(
+                  label: 'Yandex Görsel',
+                  active: _currentUrl.contains('yandex'),
+                  onTap: () => _controller.loadRequest(Uri.parse('https://yandex.com.tr/images/')),
+                ),
+                _QuickEngineChip(
+                  label: 'Google Görsel',
+                  active: _currentUrl.contains('google'),
+                  onTap: () => _controller.loadRequest(Uri.parse('https://images.google.com/')),
+                ),
+                _QuickEngineChip(
+                  label: 'Bing Visual',
+                  active: _currentUrl.contains('bing.com'),
+                  onTap: () =>
+                      _controller.loadRequest(Uri.parse('https://www.bing.com/visualsearch')),
+                ),
+                _QuickEngineChip(
+                  label: 'TinEye',
+                  active: _currentUrl.contains('tineye.com'),
+                  onTap: () => _controller.loadRequest(Uri.parse('https://tineye.com/')),
+                ),
+              ],
+            ),
           ),
         ),
 
-        // Captured DOM Drawer (Images to send to 192-D Face Verification + Extracted Links)
+        // Captured DOM Drawer
         if (_showCapturedDrawer)
           Container(
-            constraints: const BoxConstraints(maxHeight: 190),
+            constraints: const BoxConstraints(maxHeight: 185),
             padding: const EdgeInsets.all(10),
-            decoration: const BoxDecoration(
-              color: PanoptesColors.surfaceCard,
-              border: Border(bottom: BorderSide(color: PanoptesColors.borderCrimson, width: 1)),
+            decoration: BoxDecoration(
+              color: p.surfaceCard,
+              border: Border(bottom: BorderSide(color: p.borderCrimson, width: 1)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'YAKALANAN GÖRSELLER (${_capturedImages.length}) — Yüz Doğrulaması İçin Dokun',
-                      style: const TextStyle(
-                        color: PanoptesColors.crimsonBright,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Text(
+                        'YAKALANAN GÖRSELLER (${_capturedImages.length}) — Yüz Doğrulaması İçin Dokun',
+                        style: TextStyle(
+                          color: p.isDark
+                              ? PanoptesColors.crimsonBright
+                              : PanoptesColors.crimsonDeep,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     InkWell(
                       onTap: () => setState(() => _showCapturedDrawer = false),
-                      child: const Text(
+                      child: Text(
                         'Gizle',
-                        style: TextStyle(color: PanoptesColors.textSecondary, fontSize: 11),
+                        style: TextStyle(color: p.textSecondary, fontSize: 11),
                       ),
                     ),
                   ],
@@ -285,7 +300,7 @@ class _WebViewReconSheetState extends State<WebViewReconSheet> {
                 const SizedBox(height: 8),
                 if (_capturedImages.isNotEmpty)
                   SizedBox(
-                    height: 68,
+                    height: 64,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: _capturedImages.length,
@@ -298,21 +313,21 @@ class _WebViewReconSheetState extends State<WebViewReconSheet> {
                             Navigator.of(context).pop();
                           },
                           child: Container(
-                            width: 68,
-                            height: 68,
+                            width: 64,
+                            height: 64,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(color: PanoptesColors.crimson, width: 1),
-                              color: PanoptesColors.obsidian,
+                              color: p.surfaceBase,
                             ),
                             clipBehavior: Clip.antiAlias,
                             child: Image.network(
                               imgUrl,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(
+                              errorBuilder: (_, __, ___) => Icon(
                                 Icons.broken_image_outlined,
                                 size: 20,
-                                color: PanoptesColors.textMuted,
+                                color: p.textMuted,
                               ),
                             ),
                           ),
@@ -321,9 +336,9 @@ class _WebViewReconSheetState extends State<WebViewReconSheet> {
                     ),
                   )
                 else
-                  const Text(
+                  Text(
                     'Bu sayfada doğrudan <img> kaynağı bulunamadı.',
-                    style: TextStyle(color: PanoptesColors.textMuted, fontSize: 11),
+                    style: TextStyle(color: p.textMuted, fontSize: 11),
                   ),
               ],
             ),
@@ -351,18 +366,19 @@ class _QuickEngineChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = PanoptesPalette.of(context);
     return Padding(
-      padding: const EdgeInsets.only(right: 8, top: 6, bottom: 6),
+      padding: const EdgeInsets.only(right: 8),
       child: InkWell(
         borderRadius: BorderRadius.circular(6),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: active ? PanoptesColors.burgundyDeep : PanoptesColors.surfaceCard,
+            color: active ? PanoptesColors.crimson : p.surfaceCard,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
-              color: active ? PanoptesColors.crimson : PanoptesColors.borderSubtle,
+              color: active ? PanoptesColors.crimsonBright : p.borderSubtle,
               width: 1,
             ),
           ),
@@ -370,8 +386,8 @@ class _QuickEngineChip extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: active ? Colors.white : PanoptesColors.textSecondary,
-              fontSize: 11.5,
+              color: active ? Colors.white : p.textSecondary,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
           ),

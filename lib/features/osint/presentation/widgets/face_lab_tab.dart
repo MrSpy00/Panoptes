@@ -47,50 +47,52 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
     final exif = state.currentSession?.exifReport;
     final comp = state.faceComparisonResult;
     final candFace = state.candidateFaceResult;
+    final p = PanoptesPalette.of(context);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
       children: [
         // 1. Target Biometric Profile Card
         Container(
           decoration: BoxDecoration(
-            color: PanoptesColors.surfaceCard,
+            color: p.surfaceCard,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: PanoptesColors.borderCrimson, width: 1),
+            border: Border.all(color: p.borderCrimson, width: 1),
           ),
           padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.face_retouching_natural, color: PanoptesColors.crimson, size: 19),
-                      SizedBox(width: 8),
-                      Text(
-                        'ON-DEVICE BİYOMETRİK YÜZ MOTORU',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.7,
-                        ),
+                  const Icon(Icons.face_retouching_natural, color: PanoptesColors.crimson, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'ON-DEVICE BİYOMETRİK YÜZ MOTORU',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: p.textPrimary,
                       ),
-                    ],
+                    ),
                   ),
+                  const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                     decoration: BoxDecoration(
-                      color: PanoptesColors.burgundyAbyss,
+                      color: p.isDark ? PanoptesColors.burgundyAbyss : const Color(0xFFFFE4E6),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: PanoptesColors.crimson, width: 0.8),
                     ),
-                    child: const Text(
-                      '192-D COSINE + dHASH64',
+                    child: Text(
+                      '192-D + dHASH',
                       style: TextStyle(
-                        color: PanoptesColors.crimsonBright,
-                        fontSize: 10,
+                        color: p.isDark
+                            ? PanoptesColors.crimsonBright
+                            : PanoptesColors.crimsonDeep,
+                        fontSize: 9.5,
                         fontFamily: 'monospace',
                         fontWeight: FontWeight.w700,
                       ),
@@ -100,18 +102,33 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
               ),
               const SizedBox(height: 12),
               if (targetFace == null) ...[
-                const Text(
+                Text(
                   'Henüz biyometrik hedef fotoğrafı analiz edilmedi. Hedef sekmesinden fotoğraf seçin veya aşağıdaki butonla örnek biyometrik profili yükleyin.',
-                  style: TextStyle(color: PanoptesColors.textSecondary, fontSize: 12.5),
+                  style: TextStyle(color: p.textSecondary, fontSize: 12),
                 ),
                 const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: () async {
-                    notifier.loadSampleScenario();
-                    await notifier.runInvestigation();
-                  },
-                  icon: const Icon(Icons.bolt, size: 18),
-                  label: const Text('Örnek Biyometrik Hedef Yükle & Analiz Et'),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () async {
+                      notifier.loadSampleScenario();
+                      await notifier.runInvestigation();
+                    },
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.bolt, size: 18),
+                        SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Örnek Biyometrik Hedef Yükle & Analiz Et',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ] else ...[
                 Row(
@@ -119,8 +136,9 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                   children: [
                     if (targetFace.croppedFaceBytes != null)
                       Container(
-                        width: 84,
-                        height: 84,
+                        width: 78,
+                        height: 78,
+                        margin: const EdgeInsets.only(right: 12),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: PanoptesColors.crimson, width: 1.5),
@@ -131,17 +149,18 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                           fit: BoxFit.cover,
                         ),
                       ),
-                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             targetFace.detectionEngine,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w700,
-                              fontSize: 12.5,
-                              color: PanoptesColors.crimsonBright,
+                              fontSize: 12,
+                              color: p.isDark
+                                  ? PanoptesColors.crimsonBright
+                                  : PanoptesColors.crimsonDeep,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -149,10 +168,10 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                             'Yüz Sayısı: ${targetFace.faceCount} • Kalite: %${targetFace.qualityScore}\n'
                             'dHash: ${targetFace.dHashHex}\n'
                             'aHash: ${targetFace.aHashHex}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontFamily: 'monospace',
-                              fontSize: 11.5,
-                              color: PanoptesColors.textSecondary,
+                              fontSize: 11,
+                              color: p.textSecondary,
                               height: 1.4,
                             ),
                           ),
@@ -166,16 +185,16 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: PanoptesColors.surfaceBase,
+                    color: p.surfaceBase,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: PanoptesColors.borderSubtle),
+                    border: Border.all(color: p.borderSubtle),
                   ),
                   child: Text(
                     '192-D Vektör [0..11]: [${targetFace.embedding192d.take(12).map((v) => v.toStringAsFixed(3)).join(", ")} ...]',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
-                      fontSize: 11,
-                      color: PanoptesColors.textSecondary,
+                      fontSize: 10.5,
+                      color: p.textSecondary,
                     ),
                   ),
                 ),
@@ -183,54 +202,89 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
 
         // 2. On-Device Candidate Face Comparison Studio
         Container(
           decoration: BoxDecoration(
-            color: PanoptesColors.surfaceCard,
+            color: p.surfaceCard,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: PanoptesColors.borderSubtle, width: 1),
+            border: Border.all(color: p.borderSubtle, width: 1),
           ),
           padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.compare_arrows, color: PanoptesColors.crimson, size: 19),
-                  SizedBox(width: 8),
-                  Text(
-                    'ADAY GÖRSEL YÜZ DOĞRULAMA (LOCAL FACE VERIFICATION)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.6,
+                  const Icon(Icons.compare_arrows, color: PanoptesColors.crimson, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'ADAY GÖRSEL YÜZ DOĞRULAMA',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: p.textPrimary,
+                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 6),
-              const Text(
-                'Yandex / Google Lens / TinEye ters görsel aramasından bulduğunuz bir fotoğrafı galeriden seçin veya görsel URL adresini yapıştırarak hedef yüz embedding vektörüyle cihaz içinde karşılaştırın.',
-                style: TextStyle(color: PanoptesColors.textSecondary, fontSize: 12),
+              Text(
+                'Yandex / Google Lens / TinEye ters görsel aramasından bulduğunuz fotoğrafı galeriden seçin veya URL adresini yapıştırarak hedef yüz embedding vektörüyle cihaz içinde karşılaştırın.',
+                style: TextStyle(color: p.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton.icon(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                      ),
                       onPressed: _pickCandidateFromGallery,
-                      icon: const Icon(Icons.photo_library_outlined, size: 18),
-                      label: const Text('Aday Fotoğraf Seç'),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.photo_library_outlined, size: 17),
+                          SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Aday Seç',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: OutlinedButton.icon(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                      ),
                       onPressed: _pickCandidateFromCamera,
-                      icon: const Icon(Icons.camera_alt_outlined, size: 18),
-                      label: const Text('Kameradan Çek'),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.camera_alt_outlined, size: 17),
+                          SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Kamera',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -238,13 +292,28 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton.icon(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  ),
                   onPressed: () async {
                     final demoCandidate = notifier.faceService.generateDemoPortraitBytes(variant: 1);
                     await notifier.compareCandidateFaceBytes(demoCandidate);
                   },
-                  icon: const Icon(Icons.science_outlined, size: 17, color: PanoptesColors.crimson),
-                  label: const Text('Sentetik Aday Portre ile Cihaz İçi Eşleşme Testi Çalıştır'),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.science_outlined, size: 17, color: PanoptesColors.crimson),
+                      SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Sentetik Aday Portre ile Cihaz İçi Eşleşme Testi',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 11.5),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -253,15 +322,19 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                   Expanded(
                     child: TextField(
                       controller: _urlController,
+                      style: TextStyle(fontSize: 13, color: p.textPrimary),
                       decoration: const InputDecoration(
                         labelText: 'Aday Görsel URL (https://...)',
-                        hintText: 'Ters görsel aramadan bulunan fotoğraf URL\'si',
+                        hintText: 'Fotoğraf URL adresi',
                         prefixIcon: Icon(Icons.link, size: 18),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
                     onPressed: state.isComparingFace
                         ? null
                         : () async {
@@ -281,17 +354,17 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
-                        : const Text('Doğrula'),
+                        : const Text('Doğrula', style: TextStyle(fontSize: 12)),
                   ),
                 ],
               ),
 
               if (comp != null && candFace != null) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: PanoptesColors.surfaceBase,
+                    color: p.surfaceBase,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: comp.combinedScore >= 75
@@ -307,12 +380,12 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                         children: [
                           if (candFace.croppedFaceBytes != null)
                             Container(
-                              width: 58,
-                              height: 58,
+                              width: 56,
+                              height: 56,
                               margin: const EdgeInsets.only(right: 12),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: PanoptesColors.borderStrong),
+                                border: Border.all(color: p.borderStrong),
                               ),
                               clipBehavior: Clip.antiAlias,
                               child: Image.memory(
@@ -327,20 +400,21 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                                 Text(
                                   'BİYOMETRİK SKOR: %${comp.combinedScore}',
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.w800,
                                     fontFamily: 'monospace',
                                     color: comp.combinedScore >= 75
                                         ? PanoptesColors.statusHigh
-                                        : PanoptesColors.crimsonBright,
+                                        : PanoptesColors.crimson,
                                   ),
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
                                   comp.verdict,
-                                  style: const TextStyle(
-                                    fontSize: 12,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
                                     fontWeight: FontWeight.w600,
+                                    color: p.textPrimary,
                                   ),
                                 ),
                               ],
@@ -354,7 +428,7 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                         value: '%${(comp.cosineSimilarity * 100).toStringAsFixed(1)}',
                       ),
                       _MetricRow(
-                        label: '64-bit dHash Yapısal Benzerlik',
+                        label: '64-bit dHash Benzerliği',
                         value: '%${(comp.dHashSimilarity * 100).toStringAsFixed(1)}',
                       ),
                       _MetricRow(
@@ -368,36 +442,42 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
 
         // 3. EXIF & Binary Forensics Inspector
         if (exif != null)
           Container(
             decoration: BoxDecoration(
-              color: PanoptesColors.surfaceCard,
+              color: p.surfaceCard,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: PanoptesColors.borderSubtle, width: 1),
+              border: Border.all(color: p.borderSubtle, width: 1),
             ),
             padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.fingerprint, color: PanoptesColors.crimson, size: 19),
-                    SizedBox(width: 8),
-                    Text(
-                      'EXIF / JFIF ADLİ BİLİŞİM DENETÇİSİ',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.7,
+                    const Icon(Icons.fingerprint, color: PanoptesColors.crimson, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'EXIF / JFIF ADLİ BİLİŞİM DENETÇİSİ',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: p.textPrimary,
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
-                _MetricRow(label: 'SHA-256 Özeti', value: '${exif.sha256Hash.substring(0, 24)}...'),
+                _MetricRow(
+                  label: 'SHA-256 Özeti',
+                  value: '${exif.sha256Hash.substring(0, 20)}...',
+                ),
                 _MetricRow(label: 'Çözünürlük', value: '${exif.width} x ${exif.height} px'),
                 _MetricRow(
                   label: 'Dosya Boyutu',
@@ -413,7 +493,8 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                 if (exif.hasGps)
                   _MetricRow(
                     label: 'GPS Koordinatları',
-                    value: '${exif.gpsLatitude!.toStringAsFixed(5)}, ${exif.gpsLongitude!.toStringAsFixed(5)}',
+                    value:
+                        '${exif.gpsLatitude!.toStringAsFixed(5)}, ${exif.gpsLongitude!.toStringAsFixed(5)}',
                   ),
                 const SizedBox(height: 8),
                 ...exif.forensicAlerts.map(
@@ -421,9 +502,9 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       '• $a',
-                      style: const TextStyle(
-                        color: PanoptesColors.textSecondary,
-                        fontSize: 12,
+                      style: TextStyle(
+                        color: p.textSecondary,
+                        fontSize: 11.5,
                       ),
                     ),
                   ),
@@ -444,21 +525,32 @@ class _MetricRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = PanoptesPalette.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(color: PanoptesColors.textSecondary, fontSize: 12),
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: TextStyle(color: p.textSecondary, fontSize: 11.5),
+            ),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w700,
+                fontSize: 11.5,
+                color: p.textPrimary,
+              ),
             ),
           ),
         ],

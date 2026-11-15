@@ -8,15 +8,15 @@ class AppStrings {
 
   String get appTitle => 'PANOPTES';
   String get appSubtitle => isTr
-      ? 'ON-DEVICE BİYOMETRİK & KİMLİK OSINT PLATFORMU'
-      : 'ON-DEVICE BIOMETRIC & IDENTITY OSINT PLATFORM';
+      ? 'ON-DEVICE BİYOMETRİK & KİMLİK OSINT'
+      : 'ON-DEVICE BIOMETRIC & IDENTITY OSINT';
 
-  // Navigation Tabs
-  String get navAcquire => isTr ? 'Hedef & Tarama' : 'Target & Scan';
-  String get navDossier => isTr ? 'Sonuç Dosyası' : 'Intel Dossier';
-  String get navFaceLab => isTr ? 'Yüz Laboratuvarı' : 'Face Lab';
-  String get navGraph => isTr ? 'İlişki & Zaman' : 'Graph & Timeline';
-  String get navVault => isTr ? 'Geçmiş & Ayarlar' : 'Vault & Config';
+  // Concise Navigation Tabs (Fits 360dp screens without ellipsis)
+  String get navAcquire => isTr ? 'Hedef' : 'Target';
+  String get navDossier => isTr ? 'Bulgular' : 'Findings';
+  String get navFaceLab => isTr ? 'Yüz Lab' : 'Face Lab';
+  String get navGraph => isTr ? 'Grafik' : 'Graph';
+  String get navVault => isTr ? 'Kasa' : 'Vault';
 
   // Ethics & Legal Gate
   String get ethicsTitle => isTr
@@ -25,12 +25,12 @@ class AppStrings {
   String get ethicsBody => isTr
       ? '1. Sadece Herkese Açık Kaynaklar (OSINT): Panoptes yalnızca halka açık web sayfaları, arama motoru indeksleri, açık ticaret sicil/akademik kayıtlar ve cihaz içi görsel analiz yöntemlerini kullanır.\n\n'
           '2. Cihaz İçi Gizlilik (Privacy-by-Design): Yüz embedding vektörleri (192-D), EXIF verileri ve sorgu geçmişi varsayılan olarak yalnızca telefonunuzda yerel olarak işlenir ve saklanır.\n\n'
-          '3. Yasal Sorumluluk (KVKK / GDPR): 6698 sayılı KVKK ve ilgili mevzuat uyarınca kişisel verilerin işlenmesi, saklanması ve kullanım amacı tamamen kullanıcının kendi hukuki sorumluluğundadır. Yetkisiz takip, taciz veya hukuka aykırı amaçlarla kullanılamaz.'
+          '3. Yasal Sorumluluk (KVKK / GDPR): 6698 sayılı KVKK ve ilgili mevzuat uyarınca kişisel verilerin işlenmesi, saklanması ve kullanım amacı tamamen kullanıcının kendi hukuki sorumluluğundadır.'
       : '1. Public Sources Only (OSINT): Panoptes strictly queries publicly accessible web indexes, public registries, and on-device visual analysis pipelines.\n\n'
           '2. Privacy-by-Design: Biometric 192-D face embeddings, EXIF metadata, and query logs remain strictly on your device unless you explicitly configure a remote sync server.\n\n'
-          '3. Legal Liability (KVKK / GDPR): Processing of personal data is the sole legal responsibility of the operator. Use only for authorized security research, OSINT investigations, and self-auditing.';
+          '3. Legal Liability (KVKK / GDPR): Processing of personal data is the sole legal responsibility of the operator. Use only for authorized security research and OSINT investigations.';
   String get ethicsAccept => isTr
-      ? 'Şartları Okudum, Kabul Ediyorum'
+      ? 'Şartları Okudum ve Kabul Ediyorum'
       : 'I Have Read & Accept the Terms';
 
   // Input Screen
@@ -57,17 +57,17 @@ class AppStrings {
   // Categories
   String get catAll => isTr ? 'Tümü' : 'All';
   String get catFace => isTr ? 'Yüz & Görsel' : 'Face & Visual';
-  String get catSocial => isTr ? 'Sosyal & Nick' : 'Social & Username';
+  String get catSocial => isTr ? 'Sosyal & Nick' : 'Social & Handle';
   String get catTurkey => isTr ? 'Türkiye Özel' : 'Turkey OSINT';
-  String get catCorporate => isTr ? 'Şirket & Akademik' : 'Corporate & Academic';
-  String get catForums => isTr ? 'Forum & Sözlük' : 'Forums & Dictionaries';
-  String get catNews => isTr ? 'Haber & Arşiv' : 'News & Archives';
-  String get catEmailPhone => isTr ? 'E-Posta & Tel & Dork' : 'Email, Phone & Dorks';
+  String get catCorporate => isTr ? 'Şirket & Akademik' : 'Corp & Academic';
+  String get catForums => isTr ? 'Forum & Sözlük' : 'Forums & Dicts';
+  String get catNews => isTr ? 'Haber & Arşiv' : 'News & Archive';
+  String get catEmailPhone => isTr ? 'E-Posta & Tel' : 'Email & Phone';
 
   // Export & Actions
   String get exportMarkdown => isTr ? 'Markdown Rapor' : 'Markdown Report';
   String get exportPdf => isTr ? 'PDF Dosyası Üret' : 'Generate PDF Dossier';
   String get exportJson => isTr ? 'JSON Dışa Aktar' : 'Export JSON';
   String get pivotDetected => isTr ? 'YENİ PİVOT KEŞFEDİLDİ' : 'NEW PIVOT DISCOVERED';
-  String get runPivotScan => isTr ? 'Bu Pivot ile Derinleştir' : 'Deepen with Pivot';
+  String get runPivotScan => isTr ? 'Derinleştir' : 'Deepen Scan';
 }

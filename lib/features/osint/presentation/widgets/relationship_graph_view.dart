@@ -24,73 +24,72 @@ class _RelationshipGraphAndTimelineTabState
 
   @override
   Widget build(BuildContext context) {
+    final p = PanoptesPalette.of(context);
     final session = widget.session;
     if (session == null) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Text(
             'İlişki grafiği ve zaman çizelgesi üretmek için önce bir hedef taraması başlatın.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: PanoptesColors.textSecondary, fontSize: 14),
+            style: TextStyle(color: p.textSecondary, fontSize: 14),
           ),
         ),
       );
     }
 
     final selectedNode = session.graphNodes
-        .where((n) => n.id == _selectedNodeId)
-        .firstOrNull ??
+            .where((n) => n.id == _selectedNodeId)
+            .firstOrNull ??
         session.graphNodes.firstOrNull;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
       children: [
         // 1. Interactive Radial Relationship & Alias Graph Card
         Container(
           decoration: BoxDecoration(
-            color: PanoptesColors.surfaceCard,
+            color: p.surfaceCard,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: PanoptesColors.borderSubtle, width: 1),
+            border: Border.all(color: p.borderSubtle, width: 1),
           ),
           padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.hub_outlined, color: PanoptesColors.crimson, size: 18),
-                      SizedBox(width: 8),
-                      Text(
-                        'İLİŞKİ & ALIAS GRAFİĞİ',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                          color: PanoptesColors.textPrimary,
-                        ),
+                  const Icon(Icons.hub_outlined, color: PanoptesColors.crimson, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'İLİŞKİ & ALIAS GRAFİĞİ',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: p.textPrimary,
                       ),
-                    ],
+                    ),
                   ),
+                  const SizedBox(width: 6),
                   Text(
-                    '${session.graphNodes.length} Düğüm • ${session.graphEdges.length} Bağlantı',
-                    style: const TextStyle(
-                      fontSize: 11,
+                    '${session.graphNodes.length} Düğüm • ${session.graphEdges.length} Bağ',
+                    style: TextStyle(
+                      fontSize: 10.5,
                       fontFamily: 'monospace',
-                      color: PanoptesColors.textSecondary,
+                      color: p.textSecondary,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               SizedBox(
-                height: 300,
+                height: 280,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final size = Size(constraints.maxWidth, 300);
+                    final size = Size(constraints.maxWidth, 280);
                     final positions = _computeNodePositions(session.graphNodes, size);
                     return GestureDetector(
                       onTapDown: (details) {
@@ -109,6 +108,7 @@ class _RelationshipGraphAndTimelineTabState
                           edges: session.graphEdges,
                           positions: positions,
                           selectedNodeId: selectedNode?.id,
+                          palette: p,
                         ),
                       ),
                     );
@@ -120,37 +120,45 @@ class _RelationshipGraphAndTimelineTabState
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
-                        color: PanoptesColors.burgundyAbyss,
+                        color: p.isDark
+                            ? PanoptesColors.burgundyAbyss
+                            : const Color(0xFFFFE4E6),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(color: PanoptesColors.crimson, width: 1),
                       ),
                       child: Text(
                         selectedNode.type.toUpperCase(),
-                        style: const TextStyle(
-                          color: PanoptesColors.crimsonBright,
-                          fontSize: 10.5,
+                        style: TextStyle(
+                          color: p.isDark
+                              ? PanoptesColors.crimsonBright
+                              : PanoptesColors.crimsonDeep,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
                           fontFamily: 'monospace',
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         selectedNode.label,
-                        style: const TextStyle(
-                          fontSize: 13,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w700,
+                          color: p.textPrimary,
                         ),
                       ),
                     ),
+                    const SizedBox(width: 6),
                     Text(
                       'Güven: %${selectedNode.confidence}',
                       style: const TextStyle(
                         color: PanoptesColors.statusHigh,
-                        fontSize: 12,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                         fontFamily: 'monospace',
                       ),
@@ -161,43 +169,45 @@ class _RelationshipGraphAndTimelineTabState
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
 
         // 2. Recursive Pivot Engine Section
         if (session.pivots.isNotEmpty) ...[
           Container(
             decoration: BoxDecoration(
-              color: PanoptesColors.surfaceCard,
+              color: p.surfaceCard,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: PanoptesColors.borderCrimson, width: 1),
+              border: Border.all(color: p.borderCrimson, width: 1),
             ),
             padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.alt_route, color: PanoptesColors.crimson, size: 18),
-                        SizedBox(width: 8),
-                        Text(
-                          'KEŞFEDİLEN YENİ PİVOTLAR (RECURSIVE)',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.7,
-                          ),
+                    const Icon(Icons.alt_route, color: PanoptesColors.crimson, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'KEŞFEDİLEN YENİ PİVOTLAR',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: p.textPrimary,
                         ),
-                      ],
+                      ),
                     ),
+                    const SizedBox(width: 6),
                     Text(
                       'Derinlik: ${session.target.pivotDepth}/3',
-                      style: const TextStyle(
-                        color: PanoptesColors.crimsonBright,
+                      style: TextStyle(
+                        color: p.isDark
+                            ? PanoptesColors.crimsonBright
+                            : PanoptesColors.crimsonDeep,
                         fontSize: 11,
                         fontFamily: 'monospace',
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
@@ -209,9 +219,9 @@ class _RelationshipGraphAndTimelineTabState
                     child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: PanoptesColors.surfaceBase,
+                        color: p.surfaceBase,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: PanoptesColors.borderSubtle),
+                        border: Border.all(color: p.borderSubtle),
                       ),
                       child: Row(
                         children: [
@@ -221,36 +231,37 @@ class _RelationshipGraphAndTimelineTabState
                               children: [
                                 Text(
                                   '[${piv.type.name.toUpperCase()}] ${piv.value}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 13,
+                                    fontSize: 12.5,
+                                    color: p.textPrimary,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   piv.reason,
-                                  style: const TextStyle(
-                                    color: PanoptesColors.textSecondary,
-                                    fontSize: 11.5,
+                                  style: TextStyle(
+                                    color: p.textSecondary,
+                                    fontSize: 11,
                                   ),
                                 ),
                               ],
                             ),
                           ),
                           const SizedBox(width: 8),
-                          FilledButton.tonal(
+                          FilledButton(
                             style: FilledButton.styleFrom(
-                              backgroundColor: PanoptesColors.burgundyDeep,
+                              backgroundColor: PanoptesColors.crimsonDeep,
                               foregroundColor: Colors.white,
-                              minimumSize: const Size(48, 40),
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              minimumSize: const Size(0, 36),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             ),
                             onPressed: piv.depth <= 3
                                 ? () => widget.onDeepenPivot(piv)
                                 : null,
                             child: const Text(
                               'Derinleştir',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
                             ),
                           ),
                         ],
@@ -261,30 +272,33 @@ class _RelationshipGraphAndTimelineTabState
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
         ],
 
         // 3. Chronological Intelligence Timeline
         Container(
           decoration: BoxDecoration(
-            color: PanoptesColors.surfaceCard,
+            color: p.surfaceCard,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: PanoptesColors.borderSubtle, width: 1),
+            border: Border.all(color: p.borderSubtle, width: 1),
           ),
           padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.timeline, color: PanoptesColors.crimson, size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    'ZAMAN ÇİZELGESİ (CHRONOLOGICAL TIMELINE)',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.7,
+                  const Icon(Icons.timeline, color: PanoptesColors.crimson, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'ZAMAN ÇİZELGESİ (TIMELINE)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: p.textPrimary,
+                      ),
                     ),
                   ),
                 ],
@@ -309,7 +323,7 @@ class _RelationshipGraphAndTimelineTabState
                           Container(
                             width: 1.5,
                             height: 44,
-                            color: PanoptesColors.borderStrong,
+                            color: p.borderStrong,
                           ),
                         ],
                       ),
@@ -319,22 +333,29 @@ class _RelationshipGraphAndTimelineTabState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
                                   ev.dateLabel,
-                                  style: const TextStyle(
-                                    color: PanoptesColors.crimsonBright,
-                                    fontSize: 11.5,
+                                  style: TextStyle(
+                                    color: p.isDark
+                                        ? PanoptesColors.crimsonBright
+                                        : PanoptesColors.crimsonDeep,
+                                    fontSize: 11,
                                     fontFamily: 'monospace',
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                Text(
-                                  ev.source,
-                                  style: const TextStyle(
-                                    color: PanoptesColors.textMuted,
-                                    fontSize: 11,
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    ev.source,
+                                    textAlign: TextAlign.end,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: p.textMuted,
+                                      fontSize: 10.5,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -342,16 +363,17 @@ class _RelationshipGraphAndTimelineTabState
                             const SizedBox(height: 2),
                             Text(
                               ev.title,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w700,
-                                fontSize: 13,
+                                fontSize: 12.5,
+                                color: p.textPrimary,
                               ),
                             ),
                             Text(
                               ev.detail,
-                              style: const TextStyle(
-                                color: PanoptesColors.textSecondary,
-                                fontSize: 12,
+                              style: TextStyle(
+                                color: p.textSecondary,
+                                fontSize: 11.5,
                               ),
                             ),
                           ],
@@ -375,10 +397,10 @@ class _RelationshipGraphAndTimelineTabState
     map[nodes.first.id] = center;
 
     final others = nodes.skip(1).toList();
-    final radius = math.min(size.width, size.height) * 0.36;
+    final radius = math.min(size.width, size.height) * 0.35;
     for (int i = 0; i < others.length; i++) {
       final angle = (2 * math.pi * i / others.length) - (math.pi / 2);
-      final r = (i % 2 == 0) ? radius : radius * 0.78;
+      final r = (i % 2 == 0) ? radius : radius * 0.76;
       map[others[i].id] = Offset(
         center.dx + r * math.cos(angle),
         center.dy + r * math.sin(angle),
@@ -393,11 +415,13 @@ class _OsintGraphPainter extends CustomPainter {
   final List<GraphEdge> edges;
   final Map<String, Offset> positions;
   final String? selectedNodeId;
+  final PanoptesPalette palette;
 
   const _OsintGraphPainter({
     required this.nodes,
     required this.edges,
     required this.positions,
+    required this.palette,
     this.selectedNodeId,
   });
 
@@ -405,11 +429,11 @@ class _OsintGraphPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final gridPaint = Paint()
-      ..color = PanoptesColors.borderSubtle.withValues(alpha: 0.45)
+      ..color = palette.borderStrong.withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     canvas.drawCircle(center, math.min(size.width, size.height) * 0.20, gridPaint);
-    canvas.drawCircle(center, math.min(size.width, size.height) * 0.37, gridPaint);
+    canvas.drawCircle(center, math.min(size.width, size.height) * 0.36, gridPaint);
 
     // Draw Edges
     for (final edge in edges) {
@@ -431,10 +455,10 @@ class _OsintGraphPainter extends CustomPainter {
       if (pos == null) continue;
       final isRoot = node.type == 'target';
       final isSelected = node.id == selectedNodeId;
-      final radius = isRoot ? 22.0 : 15.0;
+      final radius = isRoot ? 21.0 : 14.0;
 
-      Color nodeColor = PanoptesColors.surfaceElevated;
-      Color strokeColor = PanoptesColors.borderStrong;
+      Color nodeColor = palette.surfaceElevated;
+      Color strokeColor = palette.borderStrong;
       if (isRoot) {
         nodeColor = PanoptesColors.crimson;
         strokeColor = Colors.white;
@@ -442,7 +466,7 @@ class _OsintGraphPainter extends CustomPainter {
         nodeColor = PanoptesColors.burgundyDeep;
         strokeColor = PanoptesColors.crimsonBright;
       } else if (node.type == 'pivot') {
-        nodeColor = const Color(0xFF064E3B);
+        nodeColor = const Color(0xFF065F46);
         strokeColor = PanoptesColors.statusHigh;
       } else if (isSelected) {
         strokeColor = PanoptesColors.crimson;
@@ -458,26 +482,27 @@ class _OsintGraphPainter extends CustomPainter {
           ..strokeWidth = isSelected || isRoot ? 2.2 : 1.2,
       );
 
-      final label = node.label.length > 14 ? '${node.label.substring(0, 12)}..' : node.label;
+      final label = node.label.length > 13 ? '${node.label.substring(0, 11)}..' : node.label;
       final tp = TextPainter(
         text: TextSpan(
           text: label,
           style: TextStyle(
-            color: PanoptesColors.textPrimary,
-            fontSize: isRoot ? 10.5 : 9.5,
-            fontWeight: isRoot || isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: palette.textPrimary,
+            fontSize: isRoot ? 10 : 9,
+            fontWeight: isRoot || isSelected ? FontWeight.w700 : FontWeight.w600,
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
 
-      tp.paint(canvas, Offset(pos.dx - tp.width / 2, pos.dy + radius + 4));
+      tp.paint(canvas, Offset(pos.dx - tp.width / 2, pos.dy + radius + 3));
     }
   }
 
   @override
   bool shouldRepaint(covariant _OsintGraphPainter oldDelegate) {
     return oldDelegate.nodes != nodes ||
-        oldDelegate.selectedNodeId != selectedNodeId;
+        oldDelegate.selectedNodeId != selectedNodeId ||
+        oldDelegate.palette.isDark != palette.isDark;
   }
 }

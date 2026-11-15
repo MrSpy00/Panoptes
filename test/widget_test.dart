@@ -1,18 +1,14 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:panoptes/features/osint/domain/models/osint_models.dart';
+import 'package:panoptes/features/osint/presentation/providers/osint_controller.dart';
 import 'package:panoptes/features/osint/services/export_service.dart';
 import 'package:panoptes/features/osint/services/face_forensics_service.dart';
 import 'package:panoptes/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  setUp(() {
-    SharedPreferences.setMockInitialValues({
-      'panoptes_ethics_accepted_v1': true,
-    });
-  });
-
   test('On-device FaceForensicsService extracts 192-D embedding, dHash64, and verifies similarity', () async {
     final service = FaceForensicsService();
     final bytesA = service.generateDemoPortraitBytes(variant: 0);
@@ -92,20 +88,75 @@ void main() {
     expect(pdfBytes.length, greaterThan(500));
   });
 
-  testWidgets('PanoptesApp renders shell, loads demo target, and navigates tabs', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: PanoptesApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'PanoptesApp renders ethics modal, all 5 tabs, Dark/Light theme & TR/EN flags on narrow 360x780 screen with zero overflow',
+    (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({
+        'panoptes_ethics_accepted_v1': false,
+      });
 
-    expect(find.text('PANOPTES'), findsOneWidget);
-    expect(find.text('Örnek Senaryo Yükle'), findsOneWidget);
+      // Set narrow mobile viewport (360dp x 780dp) with 1.15x text scaling
+      tester.view.physicalSize = const Size(360 * 3.0, 780 * 3.0);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
 
-    await tester.tap(find.text('Örnek Senaryo Yükle'));
-    await tester.pumpAndSettle();
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
 
-    expect(find.text('MrSpy Aegis'), findsOneWidget);
-  });
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MediaQuery(
+            data: MediaQueryData(
+              size: Size(360, 780),
+              textScaler: TextScaler.linear(1.15),
+            ),
+            child: PanoptesApp(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. Verify Ethics Consent overlay renders cleanly without overflow and accepts
+      expect(find.text('Şartları Okudum ve Kabul Ediyorum'), findsOneWidget);
+      await tester.tap(find.text('Şartları Okudum ve Kabul Ediyorum'));
+      await tester.pumpAndSettle();
+
+      // 2. Load Sample Scenario on Target Tab
+      expect(find.text('PANOPTES'), findsOneWidget);
+      await tester.tap(find.text('Örnek Senaryo Yükle'));
+      await tester.pumpAndSettle();
+      expect(find.text('MrSpy Aegis'), findsOneWidget);
+
+      // 3. Populate a full investigation session and verify all 5 tabs in Dark & Light mode
+      final notifier = container.read(panoptesProvider.notifier);
+      await notifier.runInvestigation();
+      await tester.pumpAndSettle();
+
+      for (int tab = 0; tab < 5; tab++) {
+        notifier.setActiveTab(tab);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        // Toggle to Light Theme on this tab
+        await notifier.toggleTheme();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        // Toggle Language TR -> EN on this tab
+        await notifier.toggleLanguage();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        // Toggle back to Dark Theme and TR
+        await notifier.toggleTheme();
+        await notifier.toggleLanguage();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 }

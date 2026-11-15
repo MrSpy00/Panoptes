@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'core/l10n/app_strings.dart';
 import 'core/theme/panoptes_theme.dart';
 import 'core/widgets/panoptes_logo.dart';
 import 'features/osint/presentation/providers/osint_controller.dart';
@@ -23,11 +25,12 @@ class PanoptesApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(panoptesProvider);
+    final isDarkMode = ref.watch(panoptesProvider.select((s) => s.isDarkMode));
     return MaterialApp(
       title: 'Panoptes OSINT',
       debugShowCheckedModeBanner: false,
-      themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      themeAnimationDuration: Duration.zero,
+      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
       darkTheme: PanoptesTheme.darkTheme,
       theme: PanoptesTheme.lightTheme,
       home: const PanoptesShellScreen(),
@@ -43,53 +46,76 @@ class PanoptesShellScreen extends ConsumerWidget {
     final state = ref.watch(panoptesProvider);
     final notifier = ref.read(panoptesProvider.notifier);
     final strings = state.strings;
+    final p = PanoptesPalette.of(context);
 
-    final tabs = <Widget>[
-      const TargetInputTab(),
-      const DossierResultsTab(),
-      const FaceLabTab(),
-      RelationshipGraphAndTimelineTab(
-        session: state.currentSession,
-        onDeepenPivot: notifier.deepenWithPivot,
-      ),
-      const VaultConfigTab(),
-    ];
+    Widget activeView;
+    switch (state.activeTabIndex) {
+      case 0:
+        activeView = const TargetInputTab();
+        break;
+      case 1:
+        activeView = const DossierResultsTab();
+        break;
+      case 2:
+        activeView = const FaceLabTab();
+        break;
+      case 3:
+        activeView = RelationshipGraphAndTimelineTab(
+          session: state.currentSession,
+          onDeepenPivot: notifier.deepenWithPivot,
+        );
+        break;
+      case 4:
+      default:
+        activeView = const VaultConfigTab();
+        break;
+    }
+
+    final flagAsset = state.language == AppLanguage.tr
+        ? 'assets/branding/flag_tr.svg'
+        : 'assets/branding/flag_en.svg';
 
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 62,
-        titleSpacing: 16,
+        toolbarHeight: 60,
+        titleSpacing: 12,
         title: Row(
           children: [
-            const PanoptesLogo(size: 36, simplified: true),
+            const PanoptesLogo(size: 34, simplified: true),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Text(
-                        strings.appTitle,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.8,
+                      Flexible(
+                        child: Text(
+                          strings.appTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.4,
+                            color: p.textPrimary,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                         decoration: BoxDecoration(
-                          color: PanoptesColors.burgundyAbyss,
+                          color: p.crimsonTintBg,
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: PanoptesColors.crimson, width: 0.8),
+                          border: Border.all(color: p.crimson, width: 0.8),
                         ),
-                        child: const Text(
-                          'EDGE // OFFLINE',
+                        child: Text(
+                          'EDGE',
                           style: TextStyle(
-                            color: PanoptesColors.crimsonBright,
-                            fontSize: 9,
+                            color: p.crimsonText,
+                            fontSize: 8.5,
                             fontWeight: FontWeight.w800,
                             fontFamily: 'monospace',
                           ),
@@ -97,15 +123,16 @@ class PanoptesShellScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 1),
                   Text(
                     strings.appSubtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: PanoptesColors.textSecondary,
+                    style: TextStyle(
+                      color: p.textSecondary,
                       fontSize: 9.5,
                       fontFamily: 'monospace',
-                      letterSpacing: 0.4,
+                      letterSpacing: 0.2,
                     ),
                   ),
                 ],
@@ -114,25 +141,54 @@ class PanoptesShellScreen extends ConsumerWidget {
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: 'Dil Değiştir (TR / EN)',
-            onPressed: notifier.toggleLanguage,
-            icon: Text(
-              state.language.name.toUpperCase(),
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-                color: PanoptesColors.crimsonBright,
+          // SVG Flag Language Toggle Button
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: notifier.toggleLanguage,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: p.surfaceCard,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: p.borderStrong, width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: SvgPicture.asset(
+                        flagAsset,
+                        width: 20,
+                        height: 14,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      state.language.name.toUpperCase(),
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                        color: p.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
+          const SizedBox(width: 4),
           IconButton(
-            tooltip: 'Tema Değiştir',
+            tooltip: strings.isTr ? 'Tema Değiştir' : 'Toggle Theme',
             onPressed: notifier.toggleTheme,
             icon: Icon(
               state.isDarkMode ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
               size: 20,
+              color: p.textPrimary,
             ),
           ),
           const SizedBox(width: 4),
@@ -141,16 +197,13 @@ class PanoptesShellScreen extends ConsumerWidget {
           preferredSize: const Size.fromHeight(1),
           child: Container(
             height: 1,
-            color: PanoptesColors.borderSubtle,
+            color: p.borderSubtle,
           ),
         ),
       ),
       body: Stack(
         children: [
-          IndexedStack(
-            index: state.activeTabIndex,
-            children: tabs,
-          ),
+          activeView,
           if (!state.ethicsAccepted)
             _EthicsConsentOverlay(
               title: strings.ethicsTitle,
@@ -161,9 +214,9 @@ class PanoptesShellScreen extends ConsumerWidget {
         ],
       ),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(
-            top: BorderSide(color: PanoptesColors.borderSubtle, width: 1),
+            top: BorderSide(color: p.borderSubtle, width: 1),
           ),
         ),
         child: BottomNavigationBar(
@@ -219,56 +272,77 @@ class _EthicsConsentOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = PanoptesPalette.of(context);
     return Container(
-      color: Colors.black.withValues(alpha: 0.88),
-      padding: const EdgeInsets.all(20),
+      color: Colors.black.withValues(alpha: 0.86),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       alignment: Alignment.center,
-      child: SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: PanoptesColors.surfaceCard,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: PanoptesColors.crimson, width: 1.5),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const PanoptesLogo(size: 68, showReticle: true),
-                const SizedBox(height: 14),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: PanoptesColors.crimsonBright,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 540),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: p.surfaceCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: p.crimson, width: 1.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const PanoptesLogo(size: 58, showReticle: true),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: p.crimsonText,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Text(
+                    body,
+                    style: TextStyle(
+                      color: p.textSecondary,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  body,
-                  style: const TextStyle(
-                    color: PanoptesColors.textSecondary,
-                    fontSize: 12.5,
-                    height: 1.45,
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                  onPressed: onAccept,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.verified_user_outlined, size: 18),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          acceptLabel,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton.icon(
-                    onPressed: onAccept,
-                    icon: const Icon(Icons.verified_user_outlined, size: 18),
-                    label: Text(acceptLabel),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

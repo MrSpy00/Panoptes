@@ -36,3 +36,5 @@ flutter:
   assets:
     - assets/branding/panoptes_logo.svg
     - assets/branding/panoptes_icon.svg
+    - assets/branding/flag_tr.svg
+    - assets/branding/flag_en.svg

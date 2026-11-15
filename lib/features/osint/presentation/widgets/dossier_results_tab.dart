@@ -15,34 +15,52 @@ class DossierResultsTab extends ConsumerWidget {
     final notifier = ref.read(panoptesProvider.notifier);
     final strings = state.strings;
     final session = state.currentSession;
+    final p = PanoptesPalette.of(context);
 
     if (session == null) {
       return Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.manage_search, size: 54, color: PanoptesColors.crimson),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'AKTİF İSTİHBARAT DOSYASI YOK',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: 0.6),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  letterSpacing: 0.6,
+                  color: p.textPrimary,
+                ),
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Hedef sekmesinden fotoğraf veya kimlik bilgisi girin ya da tek dokunuşla örnek senaryoyu çalıştırın.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: PanoptesColors.textSecondary, fontSize: 13),
+                style: TextStyle(color: p.textSecondary, fontSize: 13),
               ),
               const SizedBox(height: 16),
-              FilledButton.icon(
+              FilledButton(
                 onPressed: () {
                   notifier.loadSampleScenario();
                   notifier.runInvestigation();
                 },
-                icon: const Icon(Icons.bolt, size: 18),
-                label: Text(strings.loadSampleTarget),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.bolt, size: 18),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        strings.loadSampleTarget,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -57,18 +75,19 @@ class DossierResultsTab extends ConsumerWidget {
         // 1. Dossier Summary & Export Bar
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: PanoptesColors.surfaceCard,
+                color: p.surfaceCard,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: PanoptesColors.borderCrimson, width: 1),
+                border: Border.all(color: p.borderCrimson, width: 1),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Column(
@@ -76,18 +95,23 @@ class DossierResultsTab extends ConsumerWidget {
                           children: [
                             Text(
                               session.target.displayLabel.toUpperCase(),
-                              style: const TextStyle(
-                                fontSize: 15,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14.5,
                                 fontWeight: FontWeight.w800,
-                                letterSpacing: 0.5,
+                                letterSpacing: 0.4,
+                                color: p.textPrimary,
                               ),
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '${session.findings.length} Bulgu • ${session.highConfidenceCount} Yüksek Güven • Ort. Skor: %${session.averageConfidence}',
-                              style: const TextStyle(
-                                color: PanoptesColors.crimsonBright,
-                                fontSize: 11.5,
+                              '${session.findings.length} Bulgu • ${session.highConfidenceCount} Yüksek Güven • Ort: %${session.averageConfidence}',
+                              style: TextStyle(
+                                color: p.isDark
+                                    ? PanoptesColors.crimsonBright
+                                    : PanoptesColors.crimsonDeep,
+                                fontSize: 11,
                                 fontFamily: 'monospace',
                                 fontWeight: FontWeight.w700,
                               ),
@@ -97,10 +121,11 @@ class DossierResultsTab extends ConsumerWidget {
                       ),
                       IconButton(
                         tooltip: 'Favorileri Filtrele',
+                        visualDensity: VisualDensity.compact,
                         onPressed: notifier.toggleFavoritesOnly,
                         icon: Icon(
                           state.favoritesOnly ? Icons.bookmark : Icons.bookmark_border,
-                          color: state.favoritesOnly ? PanoptesColors.crimson : PanoptesColors.textSecondary,
+                          color: state.favoritesOnly ? PanoptesColors.crimson : p.textSecondary,
                         ),
                       ),
                     ],
@@ -110,7 +135,11 @@ class DossierResultsTab extends ConsumerWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                            minimumSize: const Size(0, 40),
+                          ),
                           onPressed: () async {
                             final md = notifier.exportService.generateMarkdownReport(session);
                             await notifier.exportService.shareTextReport(
@@ -118,23 +147,57 @@ class DossierResultsTab extends ConsumerWidget {
                               subject: 'Panoptes OSINT - ${session.target.displayLabel}.md',
                             );
                           },
-                          icon: const Icon(Icons.description_outlined, size: 16),
-                          label: const Text('MD', style: TextStyle(fontSize: 12)),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.description_outlined, size: 15),
+                              SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'MD',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
-                        child: FilledButton.icon(
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                            minimumSize: const Size(0, 40),
+                          ),
                           onPressed: () async {
                             await notifier.exportService.previewOrSharePdf(session);
                           },
-                          icon: const Icon(Icons.picture_as_pdf_outlined, size: 16),
-                          label: const Text('PDF', style: TextStyle(fontSize: 12)),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.picture_as_pdf_outlined, size: 15),
+                              SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'PDF',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                            minimumSize: const Size(0, 40),
+                          ),
                           onPressed: () async {
                             final js = notifier.exportService.generateJsonReport(session);
                             await notifier.exportService.shareTextReport(
@@ -142,8 +205,21 @@ class DossierResultsTab extends ConsumerWidget {
                               subject: 'Panoptes OSINT - ${session.target.displayLabel}.json',
                             );
                           },
-                          icon: const Icon(Icons.data_object, size: 16),
-                          label: const Text('JSON', style: TextStyle(fontSize: 12)),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.data_object, size: 15),
+                              SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'JSON',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -158,32 +234,45 @@ class DossierResultsTab extends ConsumerWidget {
         if (session.pivots.isNotEmpty)
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: PanoptesColors.burgundyAbyss.withValues(alpha: 0.55),
+                  color: p.isDark
+                      ? PanoptesColors.burgundyAbyss.withValues(alpha: 0.65)
+                      : const Color(0xFFFFE4E6),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: PanoptesColors.crimson, width: 1),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.alt_route, color: PanoptesColors.crimsonBright, size: 18),
+                    const Icon(Icons.alt_route, color: PanoptesColors.crimson, size: 18),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         '${strings.pivotDetected}: ${session.pivots.first.value} (${session.pivots.first.reason})',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: p.textPrimary,
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 6),
                     TextButton(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: const Size(0, 32),
+                      ),
                       onPressed: () => notifier.deepenWithPivot(session.pivots.first),
                       child: Text(
                         strings.runPivotScan,
-                        style: const TextStyle(
-                          color: PanoptesColors.crimsonBright,
+                        style: TextStyle(
+                          color: p.isDark
+                              ? PanoptesColors.crimsonBright
+                              : PanoptesColors.crimsonDeep,
                           fontWeight: FontWeight.w800,
-                          fontSize: 12,
+                          fontSize: 11.5,
                         ),
                       ),
                     ),
@@ -196,13 +285,13 @@ class DossierResultsTab extends ConsumerWidget {
         // 3. Category Filter Chips + Confidence Threshold Slider
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+            padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  height: 36,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
                     children: [
                       _CategoryChip(
                         label: '${strings.catAll} (${session.findings.length})',
@@ -250,9 +339,9 @@ class DossierResultsTab extends ConsumerWidget {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Text(
-                      'Min. Güven Skoru:',
-                      style: TextStyle(fontSize: 11.5, color: PanoptesColors.textSecondary),
+                    Text(
+                      'Min. Güven:',
+                      style: TextStyle(fontSize: 11.5, color: p.textSecondary),
                     ),
                     Expanded(
                       child: Slider(
@@ -267,10 +356,11 @@ class DossierResultsTab extends ConsumerWidget {
                     ),
                     Text(
                       '%${state.minConfidenceFilter}+',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
+                        color: p.textPrimary,
                       ),
                     ),
                   ],
@@ -282,7 +372,7 @@ class DossierResultsTab extends ConsumerWidget {
 
         // 4. High-Density Tactical Intelligence Finding Cards
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 110),
+          padding: const EdgeInsets.fromLTRB(14, 4, 14, 100),
           sliver: SliverList.separated(
             itemCount: filtered.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -324,26 +414,27 @@ class _CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = PanoptesPalette.of(context);
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: InkWell(
         borderRadius: BorderRadius.circular(6),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
           decoration: BoxDecoration(
-            color: selected ? PanoptesColors.crimson : PanoptesColors.surfaceCard,
+            color: selected ? PanoptesColors.crimson : p.surfaceCard,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
-              color: selected ? PanoptesColors.crimsonBright : PanoptesColors.borderSubtle,
+              color: selected ? PanoptesColors.crimsonBright : p.borderSubtle,
             ),
           ),
           alignment: Alignment.center,
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? Colors.white : PanoptesColors.textSecondary,
-              fontSize: 12,
+              color: selected ? Colors.white : p.textSecondary,
+              fontSize: 11.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -366,6 +457,7 @@ class _FindingIntelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = PanoptesPalette.of(context);
     final score = finding.confidenceScore;
     final badgeColor = score >= 85
         ? PanoptesColors.statusHigh
@@ -373,10 +465,10 @@ class _FindingIntelCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: PanoptesColors.surfaceCard,
+        color: p.surfaceCard,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: finding.isFavorite ? PanoptesColors.crimson : PanoptesColors.borderSubtle,
+          color: finding.isFavorite ? PanoptesColors.crimson : p.borderSubtle,
           width: finding.isFavorite ? 1.4 : 1.0,
         ),
       ),
@@ -388,7 +480,7 @@ class _FindingIntelCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(
                   color: badgeColor.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(4),
@@ -398,7 +490,7 @@ class _FindingIntelCard extends StatelessWidget {
                   'GÜVEN %$score',
                   style: TextStyle(
                     color: badgeColor,
-                    fontSize: 10.5,
+                    fontSize: 10,
                     fontWeight: FontWeight.w800,
                     fontFamily: 'monospace',
                   ),
@@ -410,8 +502,8 @@ class _FindingIntelCard extends StatelessWidget {
                   finding.sourceName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: PanoptesColors.textSecondary,
+                  style: TextStyle(
+                    color: p.textSecondary,
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
                   ),
@@ -424,7 +516,7 @@ class _FindingIntelCard extends StatelessWidget {
                   child: Icon(
                     finding.isFavorite ? Icons.bookmark : Icons.bookmark_border,
                     size: 19,
-                    color: finding.isFavorite ? PanoptesColors.crimson : PanoptesColors.textMuted,
+                    color: finding.isFavorite ? PanoptesColors.crimson : p.textMuted,
                   ),
                 ),
               ),
@@ -435,10 +527,11 @@ class _FindingIntelCard extends StatelessWidget {
           // Title & Subtitle
           Text(
             finding.title,
-            style: const TextStyle(
-              fontSize: 14,
+            style: TextStyle(
+              fontSize: 13.5,
               fontWeight: FontWeight.w800,
               height: 1.25,
+              color: p.textPrimary,
             ),
           ),
           const SizedBox(height: 3),
@@ -446,9 +539,9 @@ class _FindingIntelCard extends StatelessWidget {
             finding.subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: PanoptesColors.crimsonBright,
-              fontSize: 11.5,
+            style: TextStyle(
+              color: p.isDark ? PanoptesColors.crimsonBright : PanoptesColors.crimsonDeep,
+              fontSize: 11,
               fontFamily: 'monospace',
             ),
           ),
@@ -457,9 +550,9 @@ class _FindingIntelCard extends StatelessWidget {
           // Snippet
           Text(
             finding.snippet,
-            style: const TextStyle(
-              color: PanoptesColors.textSecondary,
-              fontSize: 12.5,
+            style: TextStyle(
+              color: p.textSecondary,
+              fontSize: 12,
               height: 1.4,
             ),
           ),
@@ -474,28 +567,35 @@ class _FindingIntelCard extends StatelessWidget {
                 (m) => Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                   decoration: BoxDecoration(
-                    color: PanoptesColors.surfaceElevated,
+                    color: p.surfaceElevated,
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: PanoptesColors.borderStrong, width: 0.8),
+                    border: Border.all(color: p.borderStrong, width: 0.8),
                   ),
                   child: Text(
                     m,
-                    style: const TextStyle(fontSize: 10.5, fontFamily: 'monospace'),
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontFamily: 'monospace',
+                      color: p.textPrimary,
+                    ),
                   ),
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(
-                  color: PanoptesColors.burgundyAbyss,
+                  color: p.isDark ? PanoptesColors.burgundyAbyss : const Color(0xFFFFE4E6),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   finding.fallbackLayer,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
-                    color: PanoptesColors.crimsonBright,
+                    color: p.isDark
+                        ? PanoptesColors.crimsonBright
+                        : PanoptesColors.crimsonDeep,
                     fontFamily: 'monospace',
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -507,31 +607,73 @@ class _FindingIntelCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
+                flex: 3,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    minimumSize: const Size(0, 36),
+                  ),
                   onPressed: onOpenWebViewBridge,
-                  icon: const Icon(Icons.radar, size: 16, color: PanoptesColors.crimson),
-                  label: const Text('WebView Köprüsü', style: TextStyle(fontSize: 11.5)),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.radar, size: 15, color: PanoptesColors.crimson),
+                      SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          'WebView',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: 6),
-              OutlinedButton(
-                onPressed: () async {
-                  final uri = Uri.tryParse(finding.url);
-                  if (uri != null) {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  }
-                },
-                child: const Text('Kaynak', style: TextStyle(fontSize: 11.5)),
+              Expanded(
+                flex: 2,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                    minimumSize: const Size(0, 36),
+                  ),
+                  onPressed: () async {
+                    final uri = Uri.tryParse(finding.url);
+                    if (uri != null) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  child: const Text(
+                    'Kaynak',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ),
               ),
               const SizedBox(width: 6),
-              OutlinedButton(
-                onPressed: () async {
-                  final uri = Uri.tryParse(finding.archiveUrl);
-                  if (uri != null) {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  }
-                },
-                child: const Text('Wayback', style: TextStyle(fontSize: 11.5)),
+              Expanded(
+                flex: 2,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                    minimumSize: const Size(0, 36),
+                  ),
+                  onPressed: () async {
+                    final uri = Uri.tryParse(finding.archiveUrl);
+                    if (uri != null) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  child: const Text(
+                    'Wayback',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ),
               ),
             ],
           ),

@@ -66,7 +66,7 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
     super.dispose();
   }
 
-  void _syncControllersFromTarget(TargetProfile t) {
+  void _applyTargetToControllers(TargetProfile t) {
     if (_nameCtrl.text != t.fullName) _nameCtrl.text = t.fullName;
     if (_ageCtrl.text != t.birthOrAge) _ageCtrl.text = t.birthOrAge;
     if (_cityCtrl.text != t.cityOrHometown) _cityCtrl.text = t.cityOrHometown;
@@ -122,27 +122,34 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
 
   @override
   Widget build(BuildContext context) {
+    // Safely listen to external draftTarget changes outside build mutation
+    ref.listen<TargetProfile>(
+      panoptesProvider.select((s) => s.draftTarget),
+      (prev, next) {
+        _applyTargetToControllers(next);
+      },
+    );
+
     final state = ref.watch(panoptesProvider);
     final notifier = ref.read(panoptesProvider.notifier);
     final strings = state.strings;
     final target = state.draftTarget;
-
-    _syncControllersFromTarget(target);
+    final p = PanoptesPalette.of(context);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 96),
       children: [
-        // 1. Tactical Hero Banner + Quick Demo Loader
+        // 1. Tactical Hero Banner
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: PanoptesColors.surfaceCard,
+            color: p.surfaceCard,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: PanoptesColors.borderCrimson, width: 1),
+            border: Border.all(color: p.borderCrimson, width: 1),
           ),
           child: Row(
             children: [
-              const PanoptesLogo(size: 56, showReticle: true),
+              const PanoptesLogo(size: 54, showReticle: true),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -150,22 +157,22 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                   children: [
                     Text(
                       strings.appSubtitle,
-                      style: const TextStyle(
-                        color: PanoptesColors.crimsonBright,
+                      style: TextStyle(
+                        color: p.crimsonText,
                         fontSize: 10.5,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.7,
+                        letterSpacing: 0.5,
                         fontFamily: 'monospace',
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       strings.isTr
-                          ? 'Fotoğraf + kimlik pivotları ile cihaz içi yüz doğrulama, Türkiye sicil/forum/akademik taraması ve çok katmanlı ters görsel istihbarat.'
-                          : 'On-device biometric face verification, Turkish & global OSINT recon, and multi-engine reverse visual pipeline.',
-                      style: const TextStyle(
-                        color: PanoptesColors.textSecondary,
-                        fontSize: 12,
+                          ? 'Fotoğraf + kimlik pivotları ile cihaz içi 192-D yüz doğrulama, Türkiye sicil/forum/akademik taraması ve çok katmanlı ters görsel istihbarat.'
+                          : 'On-device 192-D biometric face verification, Turkish & global OSINT recon, and multi-engine reverse visual pipeline.',
+                      style: TextStyle(
+                        color: p.textSecondary,
+                        fontSize: 11.5,
                         height: 1.35,
                       ),
                     ),
@@ -175,74 +182,111 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
 
         // Quick Action Row: Load Sample Scenario / Clear
         Row(
           children: [
             Expanded(
-              child: OutlinedButton.icon(
+              flex: 3,
+              child: OutlinedButton(
                 onPressed: () {
                   notifier.loadSampleScenario();
+                  final loaded = ref.read(panoptesProvider).draftTarget;
+                  _applyTargetToControllers(loaded);
+                  setState(() {});
                 },
-                icon: const Icon(Icons.auto_fix_high, size: 17, color: PanoptesColors.crimson),
-                label: Text(strings.loadSampleTarget),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.auto_fix_high, size: 16, color: p.crimson),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        strings.loadSampleTarget,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(width: 8),
-            OutlinedButton.icon(
-              onPressed: () {
-                notifier.clearDraft();
-                _nameCtrl.clear();
-                _ageCtrl.clear();
-                _cityCtrl.clear();
-                _userCtrl.clear();
-                _emailCtrl.clear();
-                _phoneCtrl.clear();
-                _orgCtrl.clear();
-                _notesCtrl.clear();
-              },
-              icon: const Icon(Icons.restart_alt, size: 17),
-              label: Text(strings.clearAll),
+            Expanded(
+              flex: 2,
+              child: OutlinedButton(
+                onPressed: () {
+                  notifier.clearDraft();
+                  _nameCtrl.clear();
+                  _ageCtrl.clear();
+                  _cityCtrl.clear();
+                  _userCtrl.clear();
+                  _emailCtrl.clear();
+                  _phoneCtrl.clear();
+                  _orgCtrl.clear();
+                  _notesCtrl.clear();
+                  setState(() {});
+                },
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.restart_alt, size: 16),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        strings.clearAll,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
 
         // 2. Photo Acquisition & Biometric Preview Card
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: PanoptesColors.surfaceCard,
+            color: p.surfaceCard,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: PanoptesColors.borderSubtle, width: 1),
+            border: Border.all(color: p.borderSubtle, width: 1),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.center_focus_strong, color: PanoptesColors.crimson, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        strings.sectionPhoto,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.7,
-                        ),
+                  Icon(Icons.center_focus_strong, color: p.crimson, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      strings.sectionPhoto,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: p.textPrimary,
                       ),
-                    ],
+                    ),
                   ),
                   if (target.hasPhoto)
                     InkWell(
                       onTap: () => notifier.updateDraftTarget(target.copyWith(clearPhoto: true)),
-                      child: const Text(
-                        'Görseli Kaldır',
-                        style: TextStyle(color: PanoptesColors.crimsonBright, fontSize: 11.5),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        child: Text(
+                          strings.isTr ? 'Kaldır' : 'Remove',
+                          style: TextStyle(
+                            color: p.crimsonText,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
                 ],
@@ -251,30 +295,30 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
               Row(
                 children: [
                   Container(
-                    width: 88,
-                    height: 88,
+                    width: 84,
+                    height: 84,
                     decoration: BoxDecoration(
-                      color: PanoptesColors.surfaceBase,
+                      color: p.surfaceBase,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: target.hasPhoto ? PanoptesColors.crimson : PanoptesColors.borderStrong,
+                        color: target.hasPhoto ? p.crimson : p.borderStrong,
                         width: 1.5,
                       ),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: target.photoBytes != null
                         ? Image.memory(target.photoBytes!, fit: BoxFit.cover)
-                        : const Column(
+                        : Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.person_search_outlined, size: 30, color: PanoptesColors.textMuted),
-                              SizedBox(height: 4),
+                              Icon(Icons.person_search_outlined, size: 28, color: p.textMuted),
+                              const SizedBox(height: 4),
                               Text(
                                 'YÜZ / EXIF',
                                 style: TextStyle(
-                                  fontSize: 9.5,
+                                  fontSize: 9,
                                   fontFamily: 'monospace',
-                                  color: PanoptesColors.textMuted,
+                                  color: p.textMuted,
                                 ),
                               ),
                             ],
@@ -286,19 +330,43 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                       children: [
                         SizedBox(
                           width: double.infinity,
-                          child: OutlinedButton.icon(
+                          child: OutlinedButton(
                             onPressed: () => _pickPhoto(ImageSource.camera),
-                            icon: const Icon(Icons.photo_camera_outlined, size: 18, color: PanoptesColors.crimson),
-                            label: Text(strings.pickCamera),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.photo_camera_outlined, size: 17, color: p.crimson),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    strings.pickCamera,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),
                         SizedBox(
                           width: double.infinity,
-                          child: OutlinedButton.icon(
+                          child: OutlinedButton(
                             onPressed: () => _pickPhoto(ImageSource.gallery),
-                            icon: const Icon(Icons.photo_library_outlined, size: 18),
-                            label: Text(strings.pickGallery),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.photo_library_outlined, size: 17),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    strings.pickGallery,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -309,29 +377,34 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
 
-        // 3. Identity Pivot Input Form
+        // 3. Identity Pivot Input Form (Full-width responsive inputs so labels never clip)
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: PanoptesColors.surfaceCard,
+            color: p.surfaceCard,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: PanoptesColors.borderSubtle, width: 1),
+            border: Border.all(color: p.borderSubtle, width: 1),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.badge_outlined, color: PanoptesColors.crimson, size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    'KİMLİK, KONUM VE DİJİTAL İZ PİVOTLARI',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.7,
+                  Icon(Icons.badge_outlined, color: p.crimson, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      strings.isTr
+                          ? 'KİMLİK, KONUM VE DİJİTAL İZ PİVOTLARI'
+                          : 'IDENTITY, LOCATION & DIGITAL PIVOTS',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: p.textPrimary,
+                      ),
                     ),
                   ),
                 ],
@@ -347,111 +420,98 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _ageCtrl,
-                      onChanged: (_) => _pushDraft(),
-                      decoration: InputDecoration(
-                        labelText: strings.fieldBirthAge,
-                        hintText: '1994 / 28-32',
-                        prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _cityCtrl,
-                      onChanged: (_) => _pushDraft(),
-                      decoration: InputDecoration(
-                        labelText: strings.fieldCity,
-                        hintText: 'İstanbul / Kars',
-                        prefixIcon: const Icon(Icons.location_on_outlined, size: 19),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // Quick Turkish City Selector
-              SizedBox(
-                height: 32,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _quickTurkishCities.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 6),
-                  itemBuilder: (context, index) {
-                    final city = _quickTurkishCities[index];
-                    final selected = _cityCtrl.text.toLowerCase().contains(city.toLowerCase());
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(6),
-                      onTap: () {
-                        _cityCtrl.text = city;
-                        _pushDraft();
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: selected ? PanoptesColors.burgundyDeep : PanoptesColors.surfaceBase,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: selected ? PanoptesColors.crimson : PanoptesColors.borderSubtle,
-                          ),
-                        ),
-                        child: Text(
-                          city,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: selected ? Colors.white : PanoptesColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 10),
               TextField(
                 controller: _userCtrl,
                 onChanged: (_) => _pushDraft(),
                 decoration: InputDecoration(
                   labelText: strings.fieldUsername,
-                  hintText: 'Örn: mrspy00 (Maigret / Sherlock / Forum taraması)',
+                  hintText: 'Örn: mrspy00 (Maigret / Sherlock / Forum)',
                   prefixIcon: const Icon(Icons.alternate_email, size: 19),
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _emailCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      onChanged: (_) => _pushDraft(),
-                      decoration: InputDecoration(
-                        labelText: strings.fieldEmail,
-                        hintText: 'isim@alanadi.com',
-                        prefixIcon: const Icon(Icons.mail_outline, size: 18),
+              TextField(
+                controller: _cityCtrl,
+                onChanged: (_) {
+                  _pushDraft();
+                  setState(() {});
+                },
+                decoration: InputDecoration(
+                  labelText: strings.fieldCity,
+                  hintText: 'İstanbul / Ankara / Kars',
+                  prefixIcon: const Icon(Icons.location_on_outlined, size: 19),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Overflow-proof Horizontal Turkish City Selector
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: _quickTurkishCities.map((city) {
+                    final selected = _cityCtrl.text.toLowerCase().contains(city.toLowerCase());
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(6),
+                        onTap: () {
+                          _cityCtrl.text = city;
+                          _pushDraft();
+                          setState(() {});
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: selected ? p.crimson : p.surfaceBase,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: selected ? p.crimson : p.borderSubtle,
+                            ),
+                          ),
+                          child: Text(
+                            city,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: selected ? Colors.white : p.textSecondary,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _phoneCtrl,
-                      keyboardType: TextInputType.phone,
-                      onChanged: (_) => _pushDraft(),
-                      decoration: InputDecoration(
-                        labelText: strings.fieldPhone,
-                        hintText: '+90 5xx xxx xx xx',
-                        prefixIcon: const Icon(Icons.phone_outlined, size: 18),
-                      ),
-                    ),
-                  ),
-                ],
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _ageCtrl,
+                onChanged: (_) => _pushDraft(),
+                decoration: InputDecoration(
+                  labelText: strings.fieldBirthAge,
+                  hintText: 'Örn: 1996 / 26-30',
+                  prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                onChanged: (_) => _pushDraft(),
+                decoration: InputDecoration(
+                  labelText: strings.fieldEmail,
+                  hintText: 'isim@alanadi.com',
+                  prefixIcon: const Icon(Icons.mail_outline, size: 18),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _phoneCtrl,
+                keyboardType: TextInputType.phone,
+                onChanged: (_) => _pushDraft(),
+                decoration: InputDecoration(
+                  labelText: strings.fieldPhone,
+                  hintText: '+90 5xx xxx xx xx',
+                  prefixIcon: const Icon(Icons.phone_outlined, size: 18),
+                ),
               ),
               const SizedBox(height: 10),
               TextField(
@@ -459,7 +519,7 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                 onChanged: (_) => _pushDraft(),
                 decoration: InputDecoration(
                   labelText: strings.fieldOccupation,
-                  hintText: 'Şirket / Üniversite / Meslek (Ticaret Sicili & YÖK Akademik)',
+                  hintText: 'Şirket / Üniversite / Meslek (Ticaret Sicili & YÖK)',
                   prefixIcon: const Icon(Icons.business_outlined, size: 19),
                 ),
               ),
@@ -470,55 +530,54 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                 onChanged: (_) => _pushDraft(),
                 decoration: InputDecoration(
                   labelText: strings.fieldNotes,
-                  hintText: 'Ek anahtar kelimeler, eski nickler, plaka kodu veya bağlam notları',
+                  hintText: 'Ek anahtar kelimeler, eski nickler veya bağlam notları',
                   prefixIcon: const Icon(Icons.notes_outlined, size: 19),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
 
         // 4. Primary Scan Trigger & Live Progress Telemetry
         if (state.isScanning)
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: PanoptesColors.surfaceCard,
+              color: p.surfaceCard,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: PanoptesColors.crimson, width: 1.5),
+              border: Border.all(color: p.crimson, width: 1.5),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const SizedBox(
+                    SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.2,
-                        color: PanoptesColors.crimson,
+                        color: p.crimson,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         strings.scanningActive,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 12.5,
-                          color: PanoptesColors.crimsonBright,
-                          letterSpacing: 0.6,
+                          fontSize: 12,
+                          color: p.crimsonText,
                         ),
                       ),
                     ),
                     Text(
                       '%${(state.scanProgress * 100).round()}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'monospace',
                         fontWeight: FontWeight.w800,
-                        color: Colors.white,
+                        color: p.textPrimary,
                       ),
                     ),
                   ],
@@ -528,16 +587,16 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                   value: state.scanProgress,
                   minHeight: 6,
                   borderRadius: BorderRadius.circular(4),
-                  color: PanoptesColors.crimson,
-                  backgroundColor: PanoptesColors.surfaceBase,
+                  color: p.crimson,
+                  backgroundColor: p.surfaceBase,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   state.scanStage,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 11.5,
-                    color: PanoptesColors.textSecondary,
+                    fontSize: 11,
+                    color: p.textSecondary,
                   ),
                 ),
               ],
@@ -546,15 +605,20 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
         else
           SizedBox(
             width: double.infinity,
-            height: 54,
-            child: FilledButton.icon(
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 52),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              ),
               onPressed: () {
                 _pushDraft();
                 if (!ref.read(panoptesProvider).draftTarget.hasAnyIdentityInput) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
+                    SnackBar(
                       content: Text(
-                        'Lütfen en az bir fotoğraf veya kimlik bilgisi girin ya da "Örnek Senaryo Yükle" butonuna dokunun.',
+                        strings.isTr
+                            ? 'Lütfen en az bir fotoğraf veya kimlik bilgisi girin ya da "Örnek Senaryo Yükle" butonuna dokunun.'
+                            : 'Please provide at least one photo or identity field, or tap "Load Demo Target".',
                       ),
                     ),
                   );
@@ -562,8 +626,20 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                 }
                 notifier.runInvestigation();
               },
-              icon: const Icon(Icons.radar, size: 22),
-              label: Text(strings.launchScan),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.radar, size: 20),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      strings.launchScan,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
       ],
