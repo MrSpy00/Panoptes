@@ -1,0 +1,17 @@
+version: "3.9"
+
+# Optional Self-Hosted Backend Stack for Panoptes Heavy Job Queue & Sync
+# Note: The Panoptes mobile app works 100% standalone on-device without this stack.
+services:
+  panoptes-postgres:
+    image: postgres:16-alpine
+    container_name: panoptes-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-panoptes}
+      POSTGRES_USER: ${POSTGRES_USER:-panoptes_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_env}
+    volumes:
+      - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:54322:5432"

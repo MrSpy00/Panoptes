@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <!-- Pure Pitch-Black Obsidian Background -->
+  <rect width="512" height="512" rx="64" fill="#000000"/>
+
+  <!-- Subtle Geometric Surveillance Reticle Rings -->
+  <circle cx="256" cy="256" r="220" stroke="#27272A" stroke-width="1" stroke-dasharray="6 10" opacity="0.55"/>
+  <circle cx="256" cy="256" r="148" stroke="#9F1239" stroke-width="1" opacity="0.28"/>
+  <line x1="256" y1="20" x2="256" y2="52" stroke="#E11D48" stroke-width="1.5" opacity="0.45"/>
+  <line x1="256" y1="460" x2="256" y2="492" stroke="#E11D48" stroke-width="1.5" opacity="0.45"/>
+  <line x1="20" y1="256" x2="52" y2="256" stroke="#E11D48" stroke-width="1.5" opacity="0.45"/>
+  <line x1="460" y1="256" x2="492" y2="256" stroke="#E11D48" stroke-width="1.5" opacity="0.45"/>
+
+  <!-- ===================================================================== -->
+  <!-- SATELLITE EYE 1: Top Crown (Medium, gazing slightly down-left)        -->
+  <!-- ===================================================================== -->
+  <g opacity="0.82">
+    <path d="M 192 104 Q 256 64 320 104 Q 256 144 192 104 Z" stroke="#E4E4E7" stroke-width="3"/>
+    <circle cx="251" cy="107" r="16" stroke="#E11D48" stroke-width="2.75"/>
+    <line x1="251" y1="97" x2="251" y2="117" stroke="#F4F4F5" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- SATELLITE EYE 2: Bottom Anchor (Medium, gazing slightly up-right)     -->
+  <!-- ===================================================================== -->
+  <g opacity="0.82">
+    <path d="M 192 408 Q 256 368 320 408 Q 256 448 192 408 Z" stroke="#E4E4E7" stroke-width="3"/>
+    <circle cx="261" cy="404" r="16" stroke="#E11D48" stroke-width="2.75"/>
+    <line x1="261" y1="394" x2="261" y2="414" stroke="#F4F4F5" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- SATELLITE EYE 3: Upper-Left Sentinel (Small-Med, gazing far left)     -->
+  <!-- ===================================================================== -->
+  <g opacity="0.65">
+    <path d="M 76 154 Q 128 122 180 154 Q 128 186 76 154 Z" stroke="#D4D4D8" stroke-width="2.5"/>
+    <circle cx="121" cy="152" r="13" stroke="#BE123C" stroke-width="2.5"/>
+    <circle cx="119" cy="152" r="3.5" fill="#F4F4F5"/>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- SATELLITE EYE 4: Upper-Right Sentinel (Small-Med, gazing up-right)    -->
+  <!-- ===================================================================== -->
+  <g opacity="0.65">
+    <path d="M 332 154 Q 384 122 436 154 Q 384 186 332 154 Z" stroke="#D4D4D8" stroke-width="2.5"/>
+    <circle cx="391" cy="150" r="13" stroke="#BE123C" stroke-width="2.5"/>
+    <circle cx="393" cy="149" r="3.5" fill="#F4F4F5"/>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- SATELLITE EYE 5: Lower-Left Watcher (Small-Med, gazing down-left)     -->
+  <!-- ===================================================================== -->
+  <g opacity="0.58">
+    <path d="M 76 358 Q 128 326 180 358 Q 128 390 76 358 Z" stroke="#D4D4D8" stroke-width="2.5"/>
+    <circle cx="122" cy="362" r="13" stroke="#BE123C" stroke-width="2.5"/>
+    <circle cx="120" cy="363" r="3.5" fill="#F4F4F5"/>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- SATELLITE EYE 6: Lower-Right Watcher (Small-Med, gazing right)        -->
+  <!-- ===================================================================== -->
+  <g opacity="0.58">
+    <path d="M 332 358 Q 384 326 436 358 Q 384 390 332 358 Z" stroke="#D4D4D8" stroke-width="2.5"/>
+    <circle cx="390" cy="360" r="13" stroke="#BE123C" stroke-width="2.5"/>
+    <circle cx="392" cy="360" r="3.5" fill="#F4F4F5"/>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- SATELLITE EYE 7: Far-Left Peripheral (Small, low opacity depth)       -->
+  <!-- ===================================================================== -->
+  <g opacity="0.40">
+    <path d="M 34 256 Q 74 232 114 256 Q 74 280 34 256 Z" stroke="#A1A1AA" stroke-width="2.2"/>
+    <circle cx="69" cy="256" r="10" stroke="#9F1239" stroke-width="2.2"/>
+    <line x1="69" y1="250" x2="69" y2="262" stroke="#E4E4E7" stroke-width="2"/>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- SATELLITE EYE 8: Far-Right Peripheral (Small, low opacity depth)      -->
+  <!-- ===================================================================== -->
+  <g opacity="0.40">
+    <path d="M 398 256 Q 438 232 478 256 Q 438 280 398 256 Z" stroke="#A1A1AA" stroke-width="2.2"/>
+    <circle cx="443" cy="256" r="10" stroke="#9F1239" stroke-width="2.2"/>
+    <line x1="443" y1="250" x2="443" y2="262" stroke="#E4E4E7" stroke-width="2"/>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- CENTRAL SOVEREIGN EYE OF ARGOS PANOPTES                               -->
+  <!-- Sharp Geometric Diamond-Almond Contour + Crimson Iris + Slit Pupil    -->
+  <!-- ===================================================================== -->
+  <g>
+    <!-- Outer Geometric Brow / Socket Frame -->
+    <path d="M 118 256 L 166 204 L 256 176 L 346 204 L 394 256 L 346 308 L 256 336 L 166 308 Z"
+          stroke="#E4E4E7" stroke-width="1.5" opacity="0.35"/>
+
+    <!-- Primary Sharp Eye Contour -->
+    <path d="M 124 256 Q 256 156 388 256 Q 256 356 124 256 Z"
+          fill="#050507" stroke="#F4F4F5" stroke-width="4.5" stroke-linejoin="round"/>
+
+    <!-- Outer Crimson-Burgundy Iris Ring -->
+    <circle cx="256" cy="256" r="46" stroke="#E11D48" stroke-width="4"/>
+
+    <!-- Inner Segmented Tactical Iris Ring -->
+    <circle cx="256" cy="256" r="32" stroke="#9F1239" stroke-width="2.5" stroke-dasharray="10 6"/>
+
+    <!-- Sharp Geometric Pupil (Vertical Slit + Core Lock) -->
+    <line x1="256" y1="220" x2="256" y2="292" stroke="#F4F4F5" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="256" cy="256" r="9" fill="#E11D48"/>
+    <circle cx="256" cy="256" r="3.5" fill="#F4F4F5"/>
+  </g>
+</svg>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
+  <!-- Simplified High-Contrast 3-Eye Emblem for 24px / 48px App Icon & Favicon -->
+  <rect width="128" height="128" rx="26" fill="#000000"/>
+
+  <!-- Top Satellite Eye -->
+  <path d="M 40 26 Q 64 12 88 26 Q 64 40 40 26 Z" stroke="#D4D4D8" stroke-width="2.5" opacity="0.72"/>
+  <circle cx="62" cy="26" r="5.5" stroke="#E11D48" stroke-width="2.2" opacity="0.85"/>
+
+  <!-- Bottom Satellite Eye -->
+  <path d="M 40 102 Q 64 88 88 102 Q 64 116 40 102 Z" stroke="#D4D4D8" stroke-width="2.5" opacity="0.72"/>
+  <circle cx="66" cy="102" r="5.5" stroke="#E11D48" stroke-width="2.2" opacity="0.85"/>
+
+  <!-- Central Sovereign Eye -->
+  <path d="M 16 64 Q 64 30 112 64 Q 64 98 16 64 Z" fill="#050507" stroke="#FAFAFA" stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="64" cy="64" r="16" stroke="#E11D48" stroke-width="3.5"/>
+  <line x1="64" y1="50" x2="64" y2="78" stroke="#FAFAFA" stroke-width="3.5" stroke-linecap="round"/>
+  <circle cx="64" cy="64" r="3.5" fill="#E11D48"/>
+</svg>
