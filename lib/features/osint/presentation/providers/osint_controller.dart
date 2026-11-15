@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/l10n/app_strings.dart';
+import '../../../../core/security/opsec_security_service.dart';
 import '../../domain/models/osint_models.dart';
 import '../../services/export_service.dart';
 import '../../services/face_forensics_service.dart';
@@ -13,6 +14,7 @@ class PanoptesState {
   final AppLanguage language;
   final int activeTabIndex;
   final TargetProfile draftTarget;
+  final FaceAnalysisResult? draftFacePreview;
   final bool isScanning;
   final String scanStage;
   final double scanProgress;
@@ -26,6 +28,12 @@ class PanoptesState {
   final bool isComparingFace;
   final String supabaseUrl;
   final String supabaseAnonKey;
+  final SecurityPostureReport? securityPosture;
+  final bool secureScreenEnabled;
+  final bool uaRotationEnabled;
+  final String activeWorkspace;
+  final ReportTemplate selectedReportTemplate;
+  final GraphLayoutMode graphLayoutMode;
 
   const PanoptesState({
     this.ethicsAccepted = false,
@@ -33,6 +41,7 @@ class PanoptesState {
     this.language = AppLanguage.tr,
     this.activeTabIndex = 0,
     this.draftTarget = const TargetProfile(),
+    this.draftFacePreview,
     this.isScanning = false,
     this.scanStage = '',
     this.scanProgress = 0.0,
@@ -46,6 +55,12 @@ class PanoptesState {
     this.isComparingFace = false,
     this.supabaseUrl = '',
     this.supabaseAnonKey = '',
+    this.securityPosture,
+    this.secureScreenEnabled = false,
+    this.uaRotationEnabled = true,
+    this.activeWorkspace = 'Genel Operasyon',
+    this.selectedReportTemplate = ReportTemplate.technical,
+    this.graphLayoutMode = GraphLayoutMode.radial,
   });
 
   AppStrings get strings => AppStrings(language);
@@ -67,10 +82,13 @@ class PanoptesState {
     AppLanguage? language,
     int? activeTabIndex,
     TargetProfile? draftTarget,
+    FaceAnalysisResult? draftFacePreview,
+    bool clearDraftFacePreview = false,
     bool? isScanning,
     String? scanStage,
     double? scanProgress,
     InvestigationSession? currentSession,
+    bool clearCurrentSession = false,
     List<InvestigationSession>? savedSessions,
     OsintCategory? selectedCategory,
     bool clearCategory = false,
@@ -82,6 +100,12 @@ class PanoptesState {
     bool? isComparingFace,
     String? supabaseUrl,
     String? supabaseAnonKey,
+    SecurityPostureReport? securityPosture,
+    bool? secureScreenEnabled,
+    bool? uaRotationEnabled,
+    String? activeWorkspace,
+    ReportTemplate? selectedReportTemplate,
+    GraphLayoutMode? graphLayoutMode,
   }) {
     return PanoptesState(
       ethicsAccepted: ethicsAccepted ?? this.ethicsAccepted,
@@ -89,10 +113,13 @@ class PanoptesState {
       language: language ?? this.language,
       activeTabIndex: activeTabIndex ?? this.activeTabIndex,
       draftTarget: draftTarget ?? this.draftTarget,
+      draftFacePreview:
+          clearDraftFacePreview ? null : (draftFacePreview ?? this.draftFacePreview),
       isScanning: isScanning ?? this.isScanning,
       scanStage: scanStage ?? this.scanStage,
       scanProgress: scanProgress ?? this.scanProgress,
-      currentSession: currentSession ?? this.currentSession,
+      currentSession:
+          clearCurrentSession ? null : (currentSession ?? this.currentSession),
       savedSessions: savedSessions ?? this.savedSessions,
       selectedCategory: clearCategory ? null : (selectedCategory ?? this.selectedCategory),
       minConfidenceFilter: minConfidenceFilter ?? this.minConfidenceFilter,
@@ -104,6 +131,12 @@ class PanoptesState {
       isComparingFace: isComparingFace ?? this.isComparingFace,
       supabaseUrl: supabaseUrl ?? this.supabaseUrl,
       supabaseAnonKey: supabaseAnonKey ?? this.supabaseAnonKey,
+      securityPosture: securityPosture ?? this.securityPosture,
+      secureScreenEnabled: secureScreenEnabled ?? this.secureScreenEnabled,
+      uaRotationEnabled: uaRotationEnabled ?? this.uaRotationEnabled,
+      activeWorkspace: activeWorkspace ?? this.activeWorkspace,
+      selectedReportTemplate: selectedReportTemplate ?? this.selectedReportTemplate,
+      graphLayoutMode: graphLayoutMode ?? this.graphLayoutMode,
     );
   }
 }
@@ -113,12 +146,14 @@ class PanoptesNotifier extends StateNotifier<PanoptesState> {
   final OsintReconEngine reconEngine;
   final LocalVaultService vaultService;
   final ExportService exportService;
+  final OpsecSecurityService opsecService;
 
   PanoptesNotifier({
     required this.faceService,
     required this.reconEngine,
     required this.vaultService,
     required this.exportService,
+    required this.opsecService,
   }) : super(const PanoptesState()) {
     _initialize();
   }
@@ -129,6 +164,12 @@ class PanoptesNotifier extends StateNotifier<PanoptesState> {
     final langCode = await vaultService.loadLanguageCode();
     final sessions = await vaultService.loadSavedSessions();
     final (sbUrl, sbKey) = await vaultService.loadSupabaseConfig();
+    final secureScreen = await vaultService.loadSecureScreenEnabled();
+    final uaRotation = await vaultService.loadUaRotationEnabled();
+    final workspace = await vaultService.loadActiveWorkspace();
+    final posture = await opsecService.inspectSecurityPosture(
+      secureScreenActive: secureScreen,
+    );
 
     state = state.copyWith(
       ethicsAccepted: accepted,
@@ -138,7 +179,51 @@ class PanoptesNotifier extends StateNotifier<PanoptesState> {
       currentSession: sessions.isNotEmpty ? sessions.first : null,
       supabaseUrl: sbUrl,
       supabaseAnonKey: sbKey,
+      secureScreenEnabled: secureScreen,
+      uaRotationEnabled: uaRotation,
+      activeWorkspace: workspace,
+      draftTarget: state.draftTarget.copyWith(workspaceName: workspace),
+      securityPosture: posture,
     );
+  }
+
+  Future<void> refreshSecurityPosture() async {
+    final posture = await opsecService.inspectSecurityPosture(
+      secureScreenActive: state.secureScreenEnabled,
+    );
+    state = state.copyWith(securityPosture: posture);
+  }
+
+  Future<void> toggleSecureScreen() async {
+    final next = !state.secureScreenEnabled;
+    await vaultService.saveSecureScreenEnabled(next);
+    final posture = await opsecService.inspectSecurityPosture(
+      secureScreenActive: next,
+    );
+    state = state.copyWith(secureScreenEnabled: next, securityPosture: posture);
+  }
+
+  Future<void> toggleUaRotation() async {
+    final next = !state.uaRotationEnabled;
+    await vaultService.saveUaRotationEnabled(next);
+    state = state.copyWith(uaRotationEnabled: next);
+  }
+
+  Future<void> setWorkspace(String workspaceName) async {
+    final clean = workspaceName.trim().isEmpty ? 'Genel Operasyon' : workspaceName.trim();
+    await vaultService.saveActiveWorkspace(clean);
+    state = state.copyWith(
+      activeWorkspace: clean,
+      draftTarget: state.draftTarget.copyWith(workspaceName: clean),
+    );
+  }
+
+  void setReportTemplate(ReportTemplate template) {
+    state = state.copyWith(selectedReportTemplate: template);
+  }
+
+  void setGraphLayoutMode(GraphLayoutMode mode) {
+    state = state.copyWith(graphLayoutMode: mode);
   }
 
   Future<void> acceptEthics() async {
@@ -162,8 +247,42 @@ class PanoptesNotifier extends StateNotifier<PanoptesState> {
     state = state.copyWith(activeTabIndex: index);
   }
 
-  void updateDraftTarget(TargetProfile updated) {
-    state = state.copyWith(draftTarget: updated);
+  Future<void> updateDraftTarget(TargetProfile updated) async {
+    final photoChanged = updated.photoBytes != state.draftTarget.photoBytes ||
+        updated.selectedFaceIndex != state.draftTarget.selectedFaceIndex;
+    state = state.copyWith(
+      draftTarget: updated,
+      clearDraftFacePreview: updated.photoBytes == null,
+    );
+    if (photoChanged && updated.photoBytes != null) {
+      final preview = await faceService.analyzeFace(
+        imageBytes: updated.photoBytes!,
+        filePath: updated.photoPath,
+        selectedFaceIndex: updated.selectedFaceIndex,
+      );
+      if (mounted) {
+        state = state.copyWith(draftFacePreview: preview);
+      }
+    }
+  }
+
+  Future<void> selectTargetFace(int faceIndex) async {
+    final nextDraft = state.draftTarget.copyWith(selectedFaceIndex: faceIndex);
+    await updateDraftTarget(nextDraft);
+    // Also update currentSession faceAnalysis if it uses the same photo
+    if (state.currentSession != null && state.draftTarget.photoBytes != null) {
+      final reanalyzed = await faceService.analyzeFace(
+        imageBytes: state.draftTarget.photoBytes!,
+        filePath: state.draftTarget.photoPath,
+        selectedFaceIndex: faceIndex,
+      );
+      state = state.copyWith(
+        currentSession: state.currentSession!.copyWith(
+          target: nextDraft,
+          faceAnalysis: reanalyzed,
+        ),
+      );
+    }
   }
 
   void setCategoryFilter(OsintCategory? category) {
@@ -182,7 +301,7 @@ class PanoptesNotifier extends StateNotifier<PanoptesState> {
     state = state.copyWith(favoritesOnly: !state.favoritesOnly);
   }
 
-  void loadSampleScenario() {
+  Future<void> loadSampleScenario() async {
     final demoPhoto = faceService.generateDemoPortraitBytes(variant: 0);
     final sample = TargetProfile(
       photoBytes: demoPhoto,
@@ -195,25 +314,86 @@ class PanoptesNotifier extends StateNotifier<PanoptesState> {
       occupationOrOrg: 'aegisSoft Offensive Security & OSINT Lab',
       notes: 'Red Team, OSINT, Rust/Flutter/TypeScript, Türkiye Siber Güvenlik Araştırmaları',
       pivotDepth: 0,
+      workspaceName: state.activeWorkspace,
     );
-    state = state.copyWith(draftTarget: sample);
+    await updateDraftTarget(sample);
   }
 
+  /// Clears ONLY the input form fields
   void clearDraft() {
     state = state.copyWith(
-      draftTarget: const TargetProfile(),
+      draftTarget: TargetProfile(workspaceName: state.activeWorkspace),
+      clearDraftFacePreview: true,
       clearFaceComparison: true,
     );
   }
 
+  /// Closes the active dossier (`currentSession`) AND clears the form so no old findings remain visible
+  void clearDraftAndActiveSession() {
+    state = state.copyWith(
+      draftTarget: TargetProfile(workspaceName: state.activeWorkspace),
+      clearDraftFacePreview: true,
+      clearCurrentSession: true,
+      clearFaceComparison: true,
+      clearCategory: true,
+    );
+  }
+
+  /// Closes only the active dossier
+  void closeActiveSession() {
+    state = state.copyWith(
+      clearCurrentSession: true,
+      clearFaceComparison: true,
+      clearCategory: true,
+    );
+  }
+
+  Future<void> deleteSavedSession(String sessionId) async {
+    await vaultService.deleteSessionById(sessionId);
+    final updated = await vaultService.loadSavedSessions();
+    final clearCurrent = state.currentSession?.id == sessionId;
+    state = state.copyWith(
+      savedSessions: updated,
+      clearCurrentSession: clearCurrent,
+    );
+  }
+
+  /// Panic Wipe / Factory Reset — wipes all history, active dossier, form, and cloud keys
+  Future<void> panicWipeAll() async {
+    await vaultService.panicWipeEverything();
+    state = state.copyWith(
+      draftTarget: const TargetProfile(),
+      clearDraftFacePreview: true,
+      clearCurrentSession: true,
+      savedSessions: const [],
+      clearFaceComparison: true,
+      clearCategory: true,
+      supabaseUrl: '',
+      supabaseAnonKey: '',
+      activeWorkspace: 'Genel Operasyon',
+      activeTabIndex: 0,
+    );
+  }
+
   Future<void> runInvestigation({TargetProfile? overrideTarget}) async {
-    final target = overrideTarget ?? state.draftTarget;
+    final target = (overrideTarget ?? state.draftTarget).copyWith(
+      workspaceName: state.activeWorkspace,
+    );
     if (!target.hasAnyIdentityInput) return;
+
+    // Find previous session for the same target to compute Diff Summary
+    InvestigationSession? previousForSameTarget;
+    for (final s in state.savedSessions) {
+      if (s.target.displayLabel.toLowerCase() == target.displayLabel.toLowerCase()) {
+        previousForSameTarget = s;
+        break;
+      }
+    }
 
     state = state.copyWith(
       draftTarget: target,
       isScanning: true,
-      scanStage: 'Cihaz İçi OSINT Motoru Hazırlanıyor...',
+      scanStage: 'Cihaz İçi Çoklu-Kaynak OSINT Motoru Hazırlanıyor...',
       scanProgress: 0.05,
       clearCategory: true,
     );
@@ -221,6 +401,8 @@ class PanoptesNotifier extends StateNotifier<PanoptesState> {
     final session = await reconEngine.executeFullScan(
       target: target,
       optionalSupabaseEdgeUrl: state.supabaseUrl.isNotEmpty ? state.supabaseUrl : null,
+      rotateUserAgent: state.uaRotationEnabled,
+      previousSessionForDiff: previousForSameTarget,
       onProgress: (stage, progress) {
         if (mounted) {
           state = state.copyWith(scanStage: stage, scanProgress: progress);
@@ -262,8 +444,7 @@ class PanoptesNotifier extends StateNotifier<PanoptesState> {
       case PivotType.organization:
       case PivotType.domain:
         next = next.copyWith(
-          occupationOrOrg:
-              '${next.occupationOrOrg} ${pivot.value}'.trim(),
+          occupationOrOrg: '${next.occupationOrOrg} ${pivot.value}'.trim(),
         );
         break;
     }
@@ -289,22 +470,28 @@ class PanoptesNotifier extends StateNotifier<PanoptesState> {
     state = state.copyWith(
       currentSession: session,
       draftTarget: session.target,
+      activeWorkspace: session.target.workspaceName,
       activeTabIndex: 1,
     );
   }
 
   Future<void> clearVaultHistory() async {
     await vaultService.clearAllHistory();
-    state = state.copyWith(savedSessions: const []);
+    state = state.copyWith(
+      savedSessions: const [],
+      clearCurrentSession: true,
+    );
   }
 
   /// On-Device Candidate Face Comparison (compare any image bytes against target face)
   Future<void> compareCandidateFaceBytes(Uint8List candidateBytes, {String? filePath}) async {
-    FaceAnalysisResult? targetFace = state.currentSession?.faceAnalysis;
+    FaceAnalysisResult? targetFace =
+        state.currentSession?.faceAnalysis ?? state.draftFacePreview;
     if (targetFace == null && state.draftTarget.photoBytes != null) {
       targetFace = await faceService.analyzeFace(
         imageBytes: state.draftTarget.photoBytes!,
         filePath: state.draftTarget.photoPath,
+        selectedFaceIndex: state.draftTarget.selectedFaceIndex,
       );
     }
     if (targetFace == null) return;
@@ -324,11 +511,13 @@ class PanoptesNotifier extends StateNotifier<PanoptesState> {
 
   /// On-Device Candidate Face Comparison via remote Image URL
   Future<bool> compareCandidateFaceUrl(String imageUrl) async {
-    FaceAnalysisResult? targetFace = state.currentSession?.faceAnalysis;
+    FaceAnalysisResult? targetFace =
+        state.currentSession?.faceAnalysis ?? state.draftFacePreview;
     if (targetFace == null && state.draftTarget.photoBytes != null) {
       targetFace = await faceService.analyzeFace(
         imageBytes: state.draftTarget.photoBytes!,
         filePath: state.draftTarget.photoPath,
+        selectedFaceIndex: state.draftTarget.selectedFaceIndex,
       );
     }
     if (targetFace == null) return false;
@@ -366,10 +555,15 @@ class PanoptesNotifier extends StateNotifier<PanoptesState> {
 
 final panoptesProvider = StateNotifierProvider<PanoptesNotifier, PanoptesState>((ref) {
   final faceService = FaceForensicsService();
+  final opsecService = OpsecSecurityService();
   return PanoptesNotifier(
     faceService: faceService,
-    reconEngine: OsintReconEngine(faceService: faceService),
-    vaultService: LocalVaultService(),
+    reconEngine: OsintReconEngine(
+      faceService: faceService,
+      opsecService: opsecService,
+    ),
+    vaultService: LocalVaultService(opsecService: opsecService),
     exportService: ExportService(),
+    opsecService: opsecService,
   );
 });

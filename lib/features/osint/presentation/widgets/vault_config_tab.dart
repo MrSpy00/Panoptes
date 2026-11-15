@@ -39,11 +39,331 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
     final strings = state.strings;
     final p = PanoptesPalette.of(context);
     final isTr = state.language == AppLanguage.tr;
+    final posture = state.securityPosture;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
       children: [
-        // 1. Argos Panoptes SVG Emblem & Multi-Scale Icon Showcase
+        // 1. OPSEC & Anti-Reverse Engineering Shield Card
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: p.surfaceCard,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: (posture?.isClean ?? true)
+                  ? PanoptesColors.statusHigh
+                  : PanoptesColors.crimson,
+              width: 1.4,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.security,
+                    color: (posture?.isClean ?? true)
+                        ? PanoptesColors.statusHigh
+                        : PanoptesColors.crimson,
+                    size: 19,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      isTr
+                          ? 'OPSEC, ŞİFRELİ KASA & ANTI-REVERSE ENGINEERING KALKANI'
+                          : 'OPSEC, ENCRYPTED VAULT & ANTI-RE SHIELD',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.4,
+                        color: p.textPrimary,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: isTr ? 'Güvenlik Taramasını Yenile' : 'Refresh Security Audit',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: notifier.refreshSecurityPosture,
+                    icon: Icon(Icons.refresh, size: 18, color: p.textSecondary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (posture != null) ...[
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _StatusBadge(
+                      label: isTr
+                          ? 'Güvenlik Skoru: %${posture.securityScore}'
+                          : 'Security Score: ${posture.securityScore}%',
+                      ok: posture.securityScore >= 85,
+                    ),
+                    _StatusBadge(
+                      label: posture.fridaOrHookDetected
+                          ? 'Frida / Xposed: DETECTED!'
+                          : (isTr ? 'Frida / Xposed Hook: TEMİZ' : 'Frida / Xposed Hook: CLEAN'),
+                      ok: !posture.fridaOrHookDetected,
+                    ),
+                    _StatusBadge(
+                      label: posture.debuggerAttached
+                          ? 'Debugger / JDWP: ATTACHED!'
+                          : (isTr ? 'Debugger / JDWP: TEMİZ' : 'Debugger / JDWP: CLEAN'),
+                      ok: !posture.debuggerAttached,
+                    ),
+                    _StatusBadge(
+                      label: posture.rootOrSuDetected
+                          ? 'Root / Magisk: DETECTED'
+                          : (isTr ? 'Root / Su İzi: TEMİZ' : 'Root / Su Binary: CLEAN'),
+                      ok: !posture.rootOrSuDetected,
+                    ),
+                    _StatusBadge(
+                      label: isTr
+                          ? 'Kasa Şifreleme: PV2 SHA-256 + HMAC'
+                          : 'Vault Crypto: PV2 SHA-256 + HMAC',
+                      ok: true,
+                    ),
+                    _StatusBadge(
+                      label: isTr
+                          ? 'R8 / ProGuard Obfuscation: AKTİF'
+                          : 'R8 / ProGuard Obfuscation: ACTIVE',
+                      ok: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  posture.summaryText,
+                  style: TextStyle(fontSize: 11.5, color: p.textSecondary),
+                ),
+              ],
+              const Divider(height: 18),
+              // FLAG_SECURE & User-Agent Rotation Toggles
+              Material(
+                type: MaterialType.transparency,
+                child: Column(
+                  children: [
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      activeThumbColor: PanoptesColors.crimson,
+                      title: Text(
+                        isTr
+                            ? 'Ekran Görüntüsü & Kayıt Koruması (FLAG_SECURE)'
+                            : 'Screenshot & Screen Record Shield (FLAG_SECURE)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: p.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        isTr
+                            ? 'Uygulama içeriğinin diğer uygulamalar tarafından kaydedilmesini ve son kullanılanlar önizlemesini engeller.'
+                            : 'Blocks third-party screen recording and hides recent-apps preview.',
+                        style: TextStyle(fontSize: 11, color: p.textSecondary),
+                      ),
+                      value: state.secureScreenEnabled,
+                      onChanged: (_) => notifier.toggleSecureScreen(),
+                    ),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      activeThumbColor: PanoptesColors.crimson,
+                      title: Text(
+                        isTr
+                            ? 'Otomatik User-Agent Rotasyonu & Ağ Gizliliği'
+                            : 'Automatic User-Agent Rotation & Network OPSEC',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: p.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        isTr
+                            ? 'Çapraz OSINT sorgularında parmak izi takibini önlemek için başlıkları döndürür.'
+                            : 'Rotates HTTP headers across cross-source OSINT probes to prevent fingerprinting.',
+                        style: TextStyle(fontSize: 11, color: p.textSecondary),
+                      ),
+                      value: state.uaRotationEnabled,
+                      onChanged: (_) => notifier.toggleUaRotation(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Panic Wipe / Full Factory Reset Button
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: PanoptesColors.burgundyDeep,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                  ),
+                  onPressed: () async {
+                    await notifier.panicWipeAll();
+                    _sbUrlCtrl.clear();
+                    _sbKeyCtrl.clear();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          backgroundColor: PanoptesColors.crimson,
+                          content: Text(
+                            'ACİL İMHA TAMAMLANDI: Tüm yerel kasa geçmişi, aktif dosya ve anahtarlar sıfırlandı.',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.delete_forever, size: 18),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'ACİL İMHA / TÜM VERİLERİ VE KASAYI SIFIRLA (PANIC WIPE)',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // 2. Local Investigation History Vault (Encrypted PV2)
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: p.surfaceCard,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: p.borderSubtle, width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.history, color: PanoptesColors.crimson, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'ŞİFRELİ YEREL SORGU GEÇMİŞİ (${state.savedSessions.length})',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                        color: p.textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (state.savedSessions.isNotEmpty)
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: const Size(0, 32),
+                      ),
+                      onPressed: notifier.clearVaultHistory,
+                      child: Text(
+                        'Tümünü Temizle',
+                        style: TextStyle(
+                          color: p.crimsonText,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (state.savedSessions.isEmpty)
+                Text(
+                  'Henüz yerel kasada kayıtlı sorgu geçmişi yok.',
+                  style: TextStyle(color: p.textSecondary, fontSize: 12),
+                )
+              else
+                ...state.savedSessions.take(12).map(
+                      (s) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () => notifier.selectSavedSession(s),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: p.surfaceBase,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: state.currentSession?.id == s.id
+                                    ? PanoptesColors.crimson
+                                    : p.borderSubtle,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.folder_special_outlined,
+                                  size: 18,
+                                  color: PanoptesColors.crimson,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${s.target.displayLabel} [${s.target.workspaceName}]',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12.5,
+                                          color: p.textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${s.createdAt.toIso8601String().substring(0, 16).replaceAll("T", " ")} • ${s.findings.length} Bulgu • Ort. %${s.averageConfidence}',
+                                        style: TextStyle(
+                                          color: p.textSecondary,
+                                          fontSize: 10.5,
+                                          fontFamily: 'monospace',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Bu Kaydı Sil',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () => notifier.deleteSavedSession(s.id),
+                                  icon: Icon(
+                                    Icons.delete_outline,
+                                    size: 18,
+                                    color: p.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // 3. Argos Panoptes SVG Emblem & Multi-Scale Icon Showcase
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -64,7 +384,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.4,
                         color: p.textPrimary,
                       ),
                     ),
@@ -84,10 +404,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
                       border: Border.all(color: p.borderStrong),
                     ),
                     padding: const EdgeInsets.all(4),
-                    child: SvgPicture.asset(
-                      'assets/branding/panoptes_logo.svg',
-                      fit: BoxFit.contain,
-                    ),
+                    child: const AnimatedPanoptesLogo(size: 74, showReticle: true),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -95,7 +412,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '9-Gözlü Tam Amblem + 48px/24px Sade İkon',
+                          'Canlı Animasyonlu 9-Gözlü Amblem + 48px/24px İkon',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 12.5,
@@ -135,124 +452,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
         ),
         const SizedBox(height: 14),
 
-        // 2. Local Investigation History Vault
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: p.surfaceCard,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: p.borderSubtle, width: 1),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.history, color: PanoptesColors.crimson, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'YEREL SORGU GEÇMİŞİ (${state.savedSessions.length})',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                        color: p.textPrimary,
-                      ),
-                    ),
-                  ),
-                  if (state.savedSessions.isNotEmpty)
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        minimumSize: const Size(0, 32),
-                      ),
-                      onPressed: notifier.clearVaultHistory,
-                      child: Text(
-                        'Tümünü Sil',
-                        style: TextStyle(
-                          color: p.isDark
-                              ? PanoptesColors.crimsonBright
-                              : PanoptesColors.crimsonDeep,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (state.savedSessions.isEmpty)
-                Text(
-                  'Henüz yerel kasada kayıtlı sorgu geçmişi yok.',
-                  style: TextStyle(color: p.textSecondary, fontSize: 12),
-                )
-              else
-                ...state.savedSessions.take(8).map(
-                      (s) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(8),
-                          onTap: () => notifier.selectSavedSession(s),
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: p.surfaceBase,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: state.currentSession?.id == s.id
-                                    ? PanoptesColors.crimson
-                                    : p.borderSubtle,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.folder_special_outlined,
-                                  size: 18,
-                                  color: PanoptesColors.crimson,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        s.target.displayLabel,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 12.5,
-                                          color: p.textPrimary,
-                                        ),
-                                      ),
-                                      Text(
-                                        '${s.createdAt.toIso8601String().substring(0, 16).replaceAll("T", " ")} • ${s.findings.length} Bulgu • Ort. %${s.averageConfidence}',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: p.textSecondary,
-                                          fontSize: 10.5,
-                                          fontFamily: 'monospace',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Icon(Icons.chevron_right, size: 18, color: p.textMuted),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        // 3. Optional Supabase Cloud & Edge Queue Module
+        // 4. Optional Supabase Cloud & Edge Queue Module
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -273,7 +473,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.4,
                         color: p.textPrimary,
                       ),
                     ),
@@ -301,7 +501,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
                 obscureText: true,
                 style: TextStyle(fontSize: 13, color: p.textPrimary),
                 decoration: const InputDecoration(
-                  labelText: 'Supabase Anon / Public Key (Opsiyonel)',
+                  labelText: 'Supabase Anon Key (Opsiyonel)',
                   hintText: 'eyJhbGciOiJIUzI1NiIsInR5cCI6...',
                   prefixIcon: Icon(Icons.key_outlined, size: 18),
                 ),
@@ -332,9 +532,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
                           Flexible(
                             child: Text(
                               'Kaydet',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 12),
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                             ),
                           ),
                         ],
@@ -368,9 +566,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
                           Flexible(
                             child: Text(
                               'Dosyayı Eşitle',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 12),
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                             ),
                           ),
                         ],
@@ -384,7 +580,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
         ),
         const SizedBox(height: 14),
 
-        // 4. App Preferences (Theme, SVG Flag Language Switcher, Ethics Notice & Execution Telemetry)
+        // 5. App Preferences (Theme, SVG Flag Language Switcher, Ethics Notice & Execution Telemetry)
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -400,7 +596,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
+                  letterSpacing: 0.4,
                   color: p.textPrimary,
                 ),
               ),
@@ -425,9 +621,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
                           Flexible(
                             child: Text(
                               state.isDarkMode ? 'Obsidian Koyu' : 'Açık Tema',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 12),
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                             ),
                           ),
                         ],
@@ -457,8 +651,6 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
                           Flexible(
                             child: Text(
                               isTr ? 'Türkçe' : 'English',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                             ),
                           ),
@@ -477,9 +669,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     fontFamily: 'monospace',
-                    color: p.isDark
-                        ? PanoptesColors.crimsonBright
-                        : PanoptesColors.crimsonDeep,
+                    color: p.crimsonText,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -491,7 +681,7 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: p.borderSubtle),
                   ),
-                  child: Text(
+                  child: SelectableText(
                     state.currentSession!.executionLogs.join('\n'),
                     style: TextStyle(
                       fontFamily: 'monospace',
@@ -511,6 +701,35 @@ class _VaultConfigTabState extends ConsumerState<VaultConfigTab> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String label;
+  final bool ok;
+
+  const _StatusBadge({required this.label, required this.ok});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = ok ? PanoptesColors.statusHigh : PanoptesColors.crimson;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.8)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontFamily: 'monospace',
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
     );
   }
 }

@@ -51,23 +51,26 @@ class PanoptesShellScreen extends ConsumerWidget {
     Widget activeView;
     switch (state.activeTabIndex) {
       case 0:
-        activeView = const TargetInputTab();
+        activeView = const TargetInputTab(key: ValueKey('tab_0'));
         break;
       case 1:
-        activeView = const DossierResultsTab();
+        activeView = const DossierResultsTab(key: ValueKey('tab_1'));
         break;
       case 2:
-        activeView = const FaceLabTab();
+        activeView = const FaceLabTab(key: ValueKey('tab_2'));
         break;
       case 3:
         activeView = RelationshipGraphAndTimelineTab(
+          key: const ValueKey('tab_3'),
           session: state.currentSession,
+          layoutMode: state.graphLayoutMode,
+          onLayoutModeChanged: notifier.setGraphLayoutMode,
           onDeepenPivot: notifier.deepenWithPivot,
         );
         break;
       case 4:
       default:
-        activeView = const VaultConfigTab();
+        activeView = const VaultConfigTab(key: ValueKey('tab_4'));
         break;
     }
 
@@ -81,7 +84,7 @@ class PanoptesShellScreen extends ConsumerWidget {
         titleSpacing: 12,
         title: Row(
           children: [
-            const PanoptesLogo(size: 34, simplified: true),
+            const AnimatedPanoptesLogo(size: 34, simplified: true),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -93,8 +96,6 @@ class PanoptesShellScreen extends ConsumerWidget {
                       Flexible(
                         child: Text(
                           strings.appTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 15.5,
                             fontWeight: FontWeight.w900,
@@ -112,7 +113,7 @@ class PanoptesShellScreen extends ConsumerWidget {
                           border: Border.all(color: p.crimson, width: 0.8),
                         ),
                         child: Text(
-                          'EDGE',
+                          'v2.0 EDGE',
                           style: TextStyle(
                             color: p.crimsonText,
                             fontSize: 8.5,
@@ -124,15 +125,17 @@ class PanoptesShellScreen extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 1),
-                  Text(
-                    strings.appSubtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: p.textSecondary,
-                      fontSize: 9.5,
-                      fontFamily: 'monospace',
-                      letterSpacing: 0.2,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      strings.appSubtitle,
+                      style: TextStyle(
+                        color: p.textSecondary,
+                        fontSize: 9.5,
+                        fontFamily: 'monospace',
+                        letterSpacing: 0.2,
+                      ),
                     ),
                   ),
                 ],
@@ -203,7 +206,18 @@ class PanoptesShellScreen extends ConsumerWidget {
       ),
       body: Stack(
         children: [
-          activeView,
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: child,
+              );
+            },
+            child: activeView,
+          ),
           if (!state.ethicsAccepted)
             _EthicsConsentOverlay(
               title: strings.ethicsTitle,
@@ -289,7 +303,7 @@ class _EthicsConsentOverlay extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const PanoptesLogo(size: 58, showReticle: true),
+              const AnimatedPanoptesLogo(size: 58, showReticle: true),
               const SizedBox(height: 10),
               Text(
                 title,

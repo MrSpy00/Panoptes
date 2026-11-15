@@ -43,7 +43,7 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
   Widget build(BuildContext context) {
     final state = ref.watch(panoptesProvider);
     final notifier = ref.read(panoptesProvider.notifier);
-    final targetFace = state.currentSession?.faceAnalysis;
+    final targetFace = state.currentSession?.faceAnalysis ?? state.draftFacePreview;
     final exif = state.currentSession?.exifReport;
     final comp = state.faceComparisonResult;
     final candFace = state.candidateFaceResult;
@@ -52,7 +52,7 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
       children: [
-        // 1. Target Biometric Profile Card
+        // 1. Target Biometric Profile, Multi-Face & OCR Card
         Container(
           decoration: BoxDecoration(
             color: p.surfaceCard,
@@ -69,11 +69,11 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'ON-DEVICE BİYOMETRİK YÜZ MOTORU',
+                      'ON-DEVICE BİYOMETRİK YÜZ, YAŞ & OCR MOTORU',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.4,
                         color: p.textPrimary,
                       ),
                     ),
@@ -82,16 +82,14 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                     decoration: BoxDecoration(
-                      color: p.isDark ? PanoptesColors.burgundyAbyss : const Color(0xFFFFE4E6),
+                      color: p.crimsonTintBg,
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: PanoptesColors.crimson, width: 0.8),
                     ),
                     child: Text(
-                      '192-D + dHASH',
+                      '192-D + OCR',
                       style: TextStyle(
-                        color: p.isDark
-                            ? PanoptesColors.crimsonBright
-                            : PanoptesColors.crimsonDeep,
+                        color: p.crimsonText,
                         fontSize: 9.5,
                         fontFamily: 'monospace',
                         fontWeight: FontWeight.w700,
@@ -111,19 +109,23 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: () async {
-                      notifier.loadSampleScenario();
+                      if (!state.draftTarget.hasPhoto) {
+                        await notifier.loadSampleScenario();
+                      }
                       await notifier.runInvestigation();
                     },
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.bolt, size: 18),
-                        SizedBox(width: 6),
+                        const Icon(Icons.bolt, size: 18),
+                        const SizedBox(width: 6),
                         Flexible(
                           child: Text(
-                            'Örnek Biyometrik Hedef Yükle & Analiz Et',
+                            state.draftTarget.hasPhoto
+                                ? 'Seçili Fotoğrafı Şimdi Analiz Et'
+                                : 'Örnek Biyometrik Hedef Yükle & Analiz Et',
                             textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
                           ),
                         ),
                       ],
@@ -136,8 +138,8 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                   children: [
                     if (targetFace.croppedFaceBytes != null)
                       Container(
-                        width: 78,
-                        height: 78,
+                        width: 84,
+                        height: 84,
                         margin: const EdgeInsets.only(right: 12),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
@@ -156,18 +158,17 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                           Text(
                             targetFace.detectionEngine,
                             style: TextStyle(
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                               fontSize: 12,
-                              color: p.isDark
-                                  ? PanoptesColors.crimsonBright
-                                  : PanoptesColors.crimsonDeep,
+                              color: p.crimsonText,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Yüz Sayısı: ${targetFace.faceCount} • Kalite: %${targetFace.qualityScore}\n'
-                            'dHash: ${targetFace.dHashHex}\n'
-                            'aHash: ${targetFace.aHashHex}',
+                            'Tespit Edilen Yüz: ${targetFace.faceCount} (Aktif: #${targetFace.selectedFaceIndex + 1})\n'
+                            'Kalite: %${targetFace.qualityScore} • Yaş: ${targetFace.estimatedAgeRange}\n'
+                            'Poz: ${targetFace.headPoseSummary} • İfade: ${targetFace.expressionSummary}\n'
+                            'dHash: ${targetFace.dHashHex} • aHash: ${targetFace.aHashHex}',
                             style: TextStyle(
                               fontFamily: 'monospace',
                               fontSize: 11,
@@ -180,7 +181,145 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: p.surfaceBase,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: p.borderSubtle),
+                  ),
+                  child: Text(
+                    'Kalite & Auto Re-Crop Önerisi: ${targetFace.qualityRecommendation}',
+                    style: TextStyle(fontSize: 11.5, color: p.textPrimary),
+                  ),
+                ),
+                // Multi-Face Target Selector (if >1 face detected)
+                if (targetFace.allFaces.length > 1) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'ÇOKLU YÜZ SEÇİMİ (HANGİ YÜZ HEDEF?):',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'monospace',
+                      color: p.crimsonText,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: targetFace.allFaces.map((fc) {
+                        final selected = fc.index == targetFace.selectedFaceIndex;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () => notifier.selectTargetFace(fc.index),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: selected ? p.crimsonTintBg : p.surfaceBase,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: selected ? p.crimson : p.borderSubtle,
+                                  width: selected ? 1.5 : 1.0,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.memory(
+                                      fc.croppedBytes,
+                                      width: 40,
+                                      height: 40,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Yüz #${fc.index + 1}',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: p.textPrimary,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Kalite %${fc.qualityScore} • ${fc.estimatedAgeRange}',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: p.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+                // OCR & Screenshot Text Extraction
+                if (targetFace.ocrExtractedLines.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: p.surfaceBase,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: p.borderStrong),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'GÖRSEL / EKRAN GÖRÜNTÜSÜ OCR METİN ÇIKARIMI:',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'monospace',
+                            color: p.crimsonText,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        ...targetFace.ocrExtractedLines.take(6).map(
+                              (line) => Text(
+                                '• $line',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'monospace',
+                                  color: p.textPrimary,
+                                ),
+                              ),
+                            ),
+                        if (targetFace.ocrDiscoveredPivots.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            'Keşfedilen OCR Pivotları: ${targetFace.ocrDiscoveredPivots.join(" | ")}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: PanoptesColors.statusHigh,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(10),
@@ -189,8 +328,8 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: p.borderSubtle),
                   ),
-                  child: Text(
-                    '192-D Vektör [0..11]: [${targetFace.embedding192d.take(12).map((v) => v.toStringAsFixed(3)).join(", ")} ...]',
+                  child: SelectableText(
+                    '192-D Vektör (İlk 8 Boyut): [${targetFace.embedding192d.take(8).map((v) => v.toStringAsFixed(3)).join(", ")}]',
                     style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 10.5,
@@ -221,11 +360,11 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'ADAY GÖRSEL YÜZ DOĞRULAMA',
+                      'ADAY GÖRSEL YÜZ & pHASH KÜMELEME DOĞRULAMASI',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.4,
                         color: p.textPrimary,
                       ),
                     ),
@@ -234,7 +373,7 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Yandex / Google Lens / TinEye ters görsel aramasından bulduğunuz fotoğrafı galeriden seçin veya URL adresini yapıştırarak hedef yüz embedding vektörüyle cihaz içinde karşılaştırın.',
+                'Yandex / Google Lens / TinEye ters görsel aramasından bulduğunuz fotoğrafı galeriden seçin veya URL adresini yapıştırarak hedef yüz embedding vektörü ve algısal hash (dHash/aHash) ile cihaz içinde karşılaştırın.',
                 style: TextStyle(color: p.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 12),
@@ -254,9 +393,7 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                           Flexible(
                             child: Text(
                               'Aday Seç',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 12),
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                             ),
                           ),
                         ],
@@ -278,9 +415,7 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                           Flexible(
                             child: Text(
                               'Kamera',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 12),
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                             ),
                           ),
                         ],
@@ -309,7 +444,7 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                         child: Text(
                           'Sentetik Aday Portre ile Cihaz İçi Eşleşme Testi',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 11.5),
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
                         ),
                       ),
                     ],
@@ -324,8 +459,8 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                       controller: _urlController,
                       style: TextStyle(fontSize: 13, color: p.textPrimary),
                       decoration: const InputDecoration(
-                        labelText: 'Aday Görsel URL (https://...)',
-                        hintText: 'Fotoğraf URL adresi',
+                        labelText: 'Aday Görsel URL Adresi',
+                        hintText: 'https://...',
                         prefixIcon: Icon(Icons.link, size: 18),
                       ),
                     ),
@@ -444,7 +579,7 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
         ),
         const SizedBox(height: 14),
 
-        // 3. EXIF & Binary Forensics Inspector
+        // 3. EXIF & Binary Forensics Inspector (Full SHA-256 without truncation)
         if (exif != null)
           Container(
             decoration: BoxDecoration(
@@ -466,7 +601,7 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
+                          letterSpacing: 0.4,
                           color: p.textPrimary,
                         ),
                       ),
@@ -474,10 +609,8 @@ class _FaceLabTabState extends ConsumerState<FaceLabTab> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                _MetricRow(
-                  label: 'SHA-256 Özeti',
-                  value: '${exif.sha256Hash.substring(0, 20)}...',
-                ),
+                _MetricRow(label: 'SHA-256 Özeti', value: exif.sha256Hash),
+                _MetricRow(label: 'MD5 Özeti', value: exif.md5Hash),
                 _MetricRow(label: 'Çözünürlük', value: '${exif.width} x ${exif.height} px'),
                 _MetricRow(
                   label: 'Dosya Boyutu',
@@ -527,11 +660,12 @@ class _MetricRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = PanoptesPalette.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 3.5),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 2,
+          SizedBox(
+            width: 130,
             child: Text(
               label,
               style: TextStyle(color: p.textSecondary, fontSize: 11.5),
@@ -539,16 +673,13 @@ class _MetricRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            flex: 3,
-            child: Text(
+            child: SelectableText(
               value,
               textAlign: TextAlign.end,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontWeight: FontWeight.w700,
-                fontSize: 11.5,
+                fontSize: 11,
                 color: p.textPrimary,
               ),
             ),

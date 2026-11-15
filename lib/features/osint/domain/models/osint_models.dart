@@ -3,13 +3,12 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 enum OsintCategory {
-  faceVisual,
-  socialUsername,
-  turkeySpecial,
-  corporateAcademic,
-  forumsDictionaries,
-  newsArchives,
-  emailPhoneDork,
+  visualAndFace,
+  usernameAndSocial,
+  emailAndPhone,
+  domainAndInfra,
+  turkeyRegional,
+  documentsAndDorks,
 }
 
 enum PivotType {
@@ -20,6 +19,18 @@ enum PivotType {
   city,
   organization,
   alias,
+}
+
+enum ReportTemplate {
+  executive,
+  technical,
+  legalKvkk,
+}
+
+enum GraphLayoutMode {
+  radial,
+  hierarchical,
+  forceDirected,
 }
 
 class TargetProfile {
@@ -34,6 +45,8 @@ class TargetProfile {
   final String occupationOrOrg;
   final String notes;
   final int pivotDepth;
+  final String workspaceName;
+  final int selectedFaceIndex;
 
   const TargetProfile({
     this.photoPath,
@@ -47,9 +60,13 @@ class TargetProfile {
     this.occupationOrOrg = '',
     this.notes = '',
     this.pivotDepth = 0,
+    this.workspaceName = 'Varsayılan Vaka',
+    this.selectedFaceIndex = 0,
   });
 
-  bool get hasPhoto => (photoBytes != null && photoBytes!.isNotEmpty) || (photoPath != null && photoPath!.isNotEmpty);
+  bool get hasPhoto =>
+      (photoBytes != null && photoBytes!.isNotEmpty) ||
+      (photoPath != null && photoPath!.isNotEmpty);
 
   bool get hasAnyIdentityInput =>
       hasPhoto ||
@@ -57,41 +74,266 @@ class TargetProfile {
       username.trim().isNotEmpty ||
       email.trim().isNotEmpty ||
       phone.trim().isNotEmpty ||
-      occupationOrOrg.trim().isNotEmpty;
+      occupationOrOrg.trim().isNotEmpty ||
+      notes.trim().isNotEmpty;
 
   String get displayLabel {
     if (fullName.trim().isNotEmpty) return fullName.trim();
-    if (username.trim().isNotEmpty) return '@${username.trim()}';
+    if (username.trim().isNotEmpty) return '@${username.trim().replaceAll('@', '')}';
     if (email.trim().isNotEmpty) return email.trim();
     if (phone.trim().isNotEmpty) return phone.trim();
+    if (occupationOrOrg.trim().isNotEmpty) return occupationOrOrg.trim();
     if (hasPhoto) return 'Biyometrik Hedef (Görsel)';
     return 'İsimsiz Hedef';
   }
 
-  /// Generates candidate usernames from full name, email prefix, or handle
+  /// Extracts a 2-digit or 4-digit birth year if present (e.g. "1998" -> ("1998", "98"))
+  (String?, String?) get extractedBirthYear {
+    final match = RegExp(r'\b(19[5-9]\d|20[0-2]\d)\b').firstMatch(birthOrAge);
+    if (match != null) {
+      final y4 = match.group(1)!;
+      return (y4, y4.substring(2));
+    }
+    return (null, null);
+  }
+
+  /// 1. Username Mutation Engine (Turkish-aware ASCII normalization + pattern permutations)
   List<String> get candidateUsernames {
     final candidates = <String>{};
+    final (_, y2) = extractedBirthYear;
+
     if (username.trim().isNotEmpty) {
-      final clean = username.trim().replaceAll('@', '').toLowerCase();
-      candidates.add(clean);
+      final clean = _normalizeTurkishSlug(username.trim().replaceAll('@', ''))
+          .replaceAll(' ', '');
+      if (clean.isNotEmpty) {
+        candidates.add(clean);
+        if (clean.contains('.')) candidates.add(clean.replaceAll('.', '_'));
+        if (clean.contains('_')) candidates.add(clean.replaceAll('_', ''));
+        if (y2 != null && !clean.endsWith(y2)) candidates.add('$clean$y2');
+      }
     }
+
     if (email.contains('@')) {
-      final prefix = email.split('@').first.trim().toLowerCase();
-      if (prefix.length >= 3) candidates.add(prefix);
+      final prefix = _normalizeTurkishSlug(email.split('@').first.trim())
+          .replaceAll(' ', '');
+      if (prefix.length >= 3) {
+        candidates.add(prefix);
+        if (prefix.contains('.')) candidates.add(prefix.replaceAll('.', ''));
+      }
     }
+
     if (fullName.trim().isNotEmpty) {
       final normalized = _normalizeTurkishSlug(fullName.trim());
-      final parts = normalized.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+      final parts = normalized
+          .split(RegExp(r'\s+'))
+          .where((e) => e.isNotEmpty)
+          .toList();
       if (parts.length >= 2) {
-        candidates.add('${parts.first}${parts.last}');
-        candidates.add('${parts.first}.${parts.last}');
-        candidates.add('${parts.first}_${parts.last}');
+        final first = parts.first;
+        final last = parts.last;
+        candidates.add('$first$last');
+        candidates.add('$first.$last');
+        candidates.add('${first}_$last');
+        candidates.add('${first[0]}$last');
+        candidates.add('${first[0]}.$last');
+        candidates.add('$last$first');
+        if (y2 != null) {
+          candidates.add('$first$last$y2');
+        }
       } else if (parts.length == 1 && parts.first.length >= 3) {
         candidates.add(parts.first);
       }
     }
-    return candidates.take(4).toList();
+    return candidates.where((c) => c.length >= 3).take(10).toList();
   }
+
+  /// 2. Email Mutation + Corporate/Public Domain Guessing Engine
+  List<String> get candidateEmails {
+    final emails = <String>{};
+    if (email.trim().contains('@')) {
+      emails.add(email.trim().toLowerCase());
+    }
+
+    final inferredDomains = <String>[
+      ...candidateDomains,
+      'gmail.com',
+      'outlook.com',
+      'icloud.com',
+      'proton.me',
+    ];
+
+    final prefixes = <String>{};
+    if (fullName.trim().isNotEmpty) {
+      final parts = _normalizeTurkishSlug(fullName.trim())
+          .split(RegExp(r'\s+'))
+          .where((e) => e.isNotEmpty)
+          .toList();
+      if (parts.length >= 2) {
+        prefixes.add('${parts.first}.${parts.last}');
+        prefixes.add('${parts.first}${parts.last}');
+        prefixes.add('${parts.first[0]}.${parts.last}');
+      }
+    }
+    for (final u in candidateUsernames.take(2)) {
+      prefixes.add(u);
+    }
+
+    for (final dom in inferredDomains.take(4)) {
+      for (final pre in prefixes.take(3)) {
+        emails.add('$pre@$dom');
+      }
+    }
+    return emails.take(8).toList();
+  }
+
+  /// 3. Phone Mutation Engine (E.164, National, Spaced, Dashed, Without-Zero)
+  List<String> get candidatePhoneFormats {
+    final raw = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (raw.length < 10) return const [];
+    String tenDigits = raw;
+    if (raw.startsWith('90') && raw.length >= 12) {
+      tenDigits = raw.substring(2, 12);
+    } else if (raw.startsWith('0') && raw.length >= 11) {
+      tenDigits = raw.substring(1, 11);
+    } else if (raw.length > 10) {
+      tenDigits = raw.substring(raw.length - 10);
+    }
+    final p1 = tenDigits.substring(0, 3);
+    final p2 = tenDigits.substring(3, 6);
+    final p3 = tenDigits.substring(6, 8);
+    final p4 = tenDigits.substring(8, 10);
+
+    return [
+      '+90$tenDigits',
+      '0$tenDigits',
+      '0$p1 $p2 $p3 $p4',
+      '0$p1-$p2-$p3-$p4',
+      '+90 $p1 $p2 $p3 $p4',
+    ];
+  }
+
+  /// 4. Candidate Domains extracted from Email, Occupation/Company, or Notes
+  List<String> get candidateDomains {
+    final domains = <String>{};
+    final genericProviders = {
+      'gmail.com',
+      'hotmail.com',
+      'outlook.com',
+      'yahoo.com',
+      'icloud.com',
+      'yandex.com',
+      'yandex.com.tr',
+      'proton.me',
+      'protonmail.com',
+      'windowslive.com',
+    };
+
+    if (email.contains('@')) {
+      final dom = email.split('@').last.trim().toLowerCase();
+      if (dom.contains('.') && !genericProviders.contains(dom)) {
+        domains.add(dom);
+      }
+    }
+
+    final domainRegex = RegExp(
+      r'\b([a-zA-Z0-9-]{2,63}\.(?:com\.tr|org\.tr|edu\.tr|gov\.tr|net\.tr|bel\.tr|av\.tr|dr\.tr|pol\.tr|tsk\.tr|com|net|org|io|dev|ai|co|me|tr))\b',
+      caseSensitive: false,
+    );
+    for (final text in [occupationOrOrg, notes, username]) {
+      for (final m in domainRegex.allMatches(text)) {
+        final d = m.group(1)!.toLowerCase();
+        if (!genericProviders.contains(d)) {
+          domains.add(d);
+        }
+      }
+    }
+
+    if (domains.isEmpty && occupationOrOrg.trim().isNotEmpty) {
+      final stopWords = {
+        'uni',
+        'universitesi',
+        'university',
+        'anonim',
+        'sirketi',
+        'ltd',
+        'sti',
+        'as',
+        'holding',
+        'group',
+        'grup',
+        'lab',
+        'teknoloji',
+        'yazilim',
+        'bilisim',
+        'muhendislik',
+      };
+      final words = _normalizeTurkishSlug(occupationOrOrg)
+          .split(RegExp(r'\s+'))
+          .where((w) => w.length >= 3 && !stopWords.contains(w))
+          .toList();
+      if (words.isNotEmpty) {
+        final slug = words.first;
+        if (occupationOrOrg.toLowerCase().contains('üniversite') ||
+            occupationOrOrg.toLowerCase().contains('university')) {
+          domains.add('$slug.edu.tr');
+        } else {
+          domains.add('$slug.com.tr');
+          domains.add('$slug.com');
+        }
+      }
+    }
+
+    return domains.take(4).toList();
+  }
+
+  /// 5. Turkish Vehicle License Plate Detector (01..81 Province Mapping)
+  (String plate, String province)? get detectedTurkishPlate {
+    final combined = '$notes $occupationOrOrg $cityOrHometown';
+    final plateRegex = RegExp(
+      r'\b(0[1-9]|[1-7][0-9]|8[01])\s*([A-ZÇĞİÖŞÜ]{1,3})\s*(\d{2,5})\b',
+      caseSensitive: false,
+    );
+    final m = plateRegex.firstMatch(combined.toUpperCase());
+    if (m == null) return null;
+    final code = m.group(1)!;
+    final letters = m.group(2)!;
+    final digits = m.group(3)!;
+    final province = _trProvinces[code] ?? 'Türkiye ($code)';
+    return ('$code $letters $digits', '$province ($code)');
+  }
+
+  /// 6. Cryptocurrency Wallet Address Detector (BTC / ETH / EVM / TRON)
+  (String network, String address)? get detectedCryptoWallet {
+    final combined = '$notes $username';
+    final ethMatch = RegExp(r'\b(0x[a-fA-F0-9]{40})\b').firstMatch(combined);
+    if (ethMatch != null) return ('Ethereum / EVM', ethMatch.group(1)!);
+    final btcMatch = RegExp(r'\b((?:bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})\b')
+        .firstMatch(combined);
+    if (btcMatch != null) return ('Bitcoin (BTC)', btcMatch.group(1)!);
+    final trxMatch = RegExp(r'\b(T[a-zA-HJ-NP-Z0-9]{33})\b').firstMatch(combined);
+    if (trxMatch != null) return ('TRON (TRX/USDT)', trxMatch.group(1)!);
+    return null;
+  }
+
+  static const Map<String, String> _trProvinces = {
+    '01': 'Adana',
+    '06': 'Ankara',
+    '07': 'Antalya',
+    '16': 'Bursa',
+    '21': 'Diyarbakır',
+    '26': 'Eskişehir',
+    '27': 'Gaziantep',
+    '31': 'Hatay',
+    '33': 'Mersin',
+    '34': 'İstanbul',
+    '35': 'İzmir',
+    '36': 'Kars',
+    '38': 'Kayseri',
+    '41': 'Kocaeli',
+    '42': 'Konya',
+    '55': 'Samsun',
+    '61': 'Trabzon',
+  };
 
   static String _normalizeTurkishSlug(String input) {
     return input
@@ -119,6 +361,8 @@ class TargetProfile {
     String? occupationOrOrg,
     String? notes,
     int? pivotDepth,
+    String? workspaceName,
+    int? selectedFaceIndex,
   }) {
     return TargetProfile(
       photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
@@ -132,6 +376,8 @@ class TargetProfile {
       occupationOrOrg: occupationOrOrg ?? this.occupationOrOrg,
       notes: notes ?? this.notes,
       pivotDepth: pivotDepth ?? this.pivotDepth,
+      workspaceName: workspaceName ?? this.workspaceName,
+      selectedFaceIndex: selectedFaceIndex ?? this.selectedFaceIndex,
     );
   }
 
@@ -147,6 +393,8 @@ class TargetProfile {
         'occupationOrOrg': occupationOrOrg,
         'notes': notes,
         'pivotDepth': pivotDepth,
+        'workspaceName': workspaceName,
+        'selectedFaceIndex': selectedFaceIndex,
       };
 
   factory TargetProfile.fromJson(Map<String, dynamic> json) {
@@ -163,6 +411,8 @@ class TargetProfile {
       occupationOrOrg: (json['occupationOrOrg'] as String?) ?? '',
       notes: (json['notes'] as String?) ?? '',
       pivotDepth: (json['pivotDepth'] as int?) ?? 0,
+      workspaceName: (json['workspaceName'] as String?) ?? 'Varsayılan Vaka',
+      selectedFaceIndex: (json['selectedFaceIndex'] as int?) ?? 0,
     );
   }
 }
@@ -195,6 +445,56 @@ class FaceBoundingRect {
       );
 }
 
+class DetectedFaceCandidate {
+  final int index;
+  final FaceBoundingRect box;
+  final int qualityScore;
+  final String estimatedAgeRange;
+  final String poseAndExpression;
+  final String dHashHex;
+  final List<double> embedding192d;
+  final Uint8List? croppedFaceBytes;
+
+  const DetectedFaceCandidate({
+    required this.index,
+    required this.box,
+    required this.qualityScore,
+    required this.estimatedAgeRange,
+    required this.poseAndExpression,
+    required this.dHashHex,
+    required this.embedding192d,
+    this.croppedFaceBytes,
+  });
+
+  Uint8List get croppedBytes => croppedFaceBytes ?? Uint8List(0);
+
+  Map<String, dynamic> toJson() => {
+        'index': index,
+        'box': box.toJson(),
+        'qualityScore': qualityScore,
+        'estimatedAgeRange': estimatedAgeRange,
+        'poseAndExpression': poseAndExpression,
+        'dHashHex': dHashHex,
+        'embedding192d': embedding192d,
+      };
+
+  factory DetectedFaceCandidate.fromJson(Map<String, dynamic> json) =>
+      DetectedFaceCandidate(
+        index: (json['index'] as int?) ?? 0,
+        box: FaceBoundingRect.fromJson(
+          (json['box'] as Map<String, dynamic>?) ??
+              const {'left': 0, 'top': 0, 'width': 100, 'height': 100},
+        ),
+        qualityScore: (json['qualityScore'] as num?)?.round() ?? 85,
+        estimatedAgeRange: (json['estimatedAgeRange'] as String?) ?? '22-32 Yaş',
+        poseAndExpression: (json['poseAndExpression'] as String?) ?? 'Cephe • Net',
+        dHashHex: (json['dHashHex'] as String?) ?? '',
+        embedding192d: ((json['embedding192d'] as List?) ?? const [])
+            .map((e) => (e as num).toDouble())
+            .toList(),
+      );
+}
+
 class FaceComparisonResult {
   final double cosineSimilarity; // 0.0 - 1.0
   final double dHashSimilarity; // 0.0 - 1.0
@@ -209,28 +509,38 @@ class FaceComparisonResult {
     required this.combinedScore,
     required this.verdict,
   });
+
+  int get overallSimilarity => combinedScore.round();
 }
 
 class FaceAnalysisResult {
   final bool faceDetected;
   final int faceCount;
-  final String detectionEngine; // 'ML Kit On-Device' | 'TFLite/Geometric Fallback' | 'Manual Crop'
+  final int selectedFaceIndex;
+  final String detectionEngine;
   final FaceBoundingRect? primaryBox;
-  final double? headEulerY; // Yaw
-  final double? headEulerZ; // Roll
+  final double? headEulerY;
+  final double? headEulerZ;
   final double? smilingProbability;
   final double? leftEyeOpenProbability;
   final double? rightEyeOpenProbability;
-  final List<double> embedding192d; // 192-dimensional L2-normalized biometric vector
-  final String dHashHex; // 64-bit difference hash (16 hex chars)
-  final String aHashHex; // 64-bit average hash (16 hex chars)
-  final List<double> colorHistogram; // 24-bin normalized RGB/luminance distribution
-  final double qualityScore; // 0 - 100
+  final List<double> embedding192d;
+  final String dHashHex;
+  final String aHashHex;
+  final List<double> colorHistogram;
+  final int qualityScore;
   final Uint8List? croppedFaceBytes;
+  final String estimatedAgeRange;
+  final String poseAndExpression;
+  final String qualityRecommendation;
+  final List<DetectedFaceCandidate> allFaces;
+  final List<String> ocrExtractedLines;
+  final List<String> ocrDiscoveredPivots;
 
   const FaceAnalysisResult({
     required this.faceDetected,
     required this.faceCount,
+    this.selectedFaceIndex = 0,
     required this.detectionEngine,
     this.primaryBox,
     this.headEulerY,
@@ -244,11 +554,32 @@ class FaceAnalysisResult {
     required this.colorHistogram,
     required this.qualityScore,
     this.croppedFaceBytes,
+    this.estimatedAgeRange = 'Belirleniyor',
+    this.poseAndExpression = 'Cephe Görünüm • Doğal İfade',
+    this.qualityRecommendation = 'Optimum biyometrik kalite — ters görsel ve 192-D eşleşmeye hazır.',
+    this.allFaces = const [],
+    this.ocrExtractedLines = const [],
+    this.ocrDiscoveredPivots = const [],
   });
 
-  /// Computes on-device biometric verification between two FaceAnalysisResult objects
+  String get headPoseSummary {
+    final y = headEulerY ?? 0.0;
+    final z = headEulerZ ?? 0.0;
+    if (y.abs() <= 10.0) {
+      return 'Tam Cephe (Y:${y.toStringAsFixed(1)}° Z:${z.toStringAsFixed(1)}°)';
+    }
+    return y > 0
+        ? 'Sol Yönelim (+${y.toStringAsFixed(1)}°)'
+        : 'Sağ Yönelim (${y.toStringAsFixed(1)}°)';
+  }
+
+  String get expressionSummary {
+    final parts = poseAndExpression.split('•').map((e) => e.trim()).toList();
+    if (parts.length >= 2) return parts.sublist(1).join(' • ');
+    return poseAndExpression;
+  }
+
   FaceComparisonResult compareWith(FaceAnalysisResult candidate) {
-    // 1. 192-D Cosine Similarity
     double dot = 0.0;
     double normA = 0.0;
     double normB = 0.0;
@@ -264,10 +595,8 @@ class FaceAnalysisResult {
     final rawCosine = denom > 1e-9 ? (dot / denom).clamp(-1.0, 1.0) : 0.0;
     final cosineSim = ((rawCosine + 1.0) / 2.0).clamp(0.0, 1.0);
 
-    // 2. 64-bit dHash Hamming Distance Similarity
     final dHashSim = _hexHammingSimilarity(dHashHex, candidate.dHashHex);
 
-    // 3. Histogram Intersection Similarity
     double histSim = 0.0;
     final hLen = math.min(colorHistogram.length, candidate.colorHistogram.length);
     if (hLen > 0) {
@@ -278,8 +607,8 @@ class FaceAnalysisResult {
       histSim = sumMin.clamp(0.0, 1.0);
     }
 
-    // Weighted Biometric Verification Score (0 - 100)
-    final combined = ((cosineSim * 0.62) + (dHashSim * 0.25) + (histSim * 0.13)) * 100.0;
+    final combined =
+        ((cosineSim * 0.62) + (dHashSim * 0.25) + (histSim * 0.13)) * 100.0;
     final rounded = double.parse(combined.clamp(0.0, 100.0).toStringAsFixed(1));
 
     String verdict;
@@ -323,6 +652,7 @@ class FaceAnalysisResult {
   Map<String, dynamic> toJson() => {
         'faceDetected': faceDetected,
         'faceCount': faceCount,
+        'selectedFaceIndex': selectedFaceIndex,
         'detectionEngine': detectionEngine,
         'primaryBox': primaryBox?.toJson(),
         'headEulerY': headEulerY,
@@ -335,11 +665,19 @@ class FaceAnalysisResult {
         'aHashHex': aHashHex,
         'colorHistogram': colorHistogram,
         'qualityScore': qualityScore,
+        'estimatedAgeRange': estimatedAgeRange,
+        'poseAndExpression': poseAndExpression,
+        'qualityRecommendation': qualityRecommendation,
+        'allFaces': allFaces.map((f) => f.toJson()).toList(),
+        'ocrExtractedLines': ocrExtractedLines,
+        'ocrDiscoveredPivots': ocrDiscoveredPivots,
       };
 
-  factory FaceAnalysisResult.fromJson(Map<String, dynamic> json) => FaceAnalysisResult(
+  factory FaceAnalysisResult.fromJson(Map<String, dynamic> json) =>
+      FaceAnalysisResult(
         faceDetected: (json['faceDetected'] as bool?) ?? false,
         faceCount: (json['faceCount'] as int?) ?? 0,
+        selectedFaceIndex: (json['selectedFaceIndex'] as int?) ?? 0,
         detectionEngine: (json['detectionEngine'] as String?) ?? 'On-Device',
         primaryBox: json['primaryBox'] != null
             ? FaceBoundingRect.fromJson(json['primaryBox'] as Map<String, dynamic>)
@@ -348,7 +686,8 @@ class FaceAnalysisResult {
         headEulerZ: (json['headEulerZ'] as num?)?.toDouble(),
         smilingProbability: (json['smilingProbability'] as num?)?.toDouble(),
         leftEyeOpenProbability: (json['leftEyeOpenProbability'] as num?)?.toDouble(),
-        rightEyeOpenProbability: (json['rightEyeOpenProbability'] as num?)?.toDouble(),
+        rightEyeOpenProbability:
+            (json['rightEyeOpenProbability'] as num?)?.toDouble(),
         embedding192d: ((json['embedding192d'] as List?) ?? const [])
             .map((e) => (e as num).toDouble())
             .toList(),
@@ -357,12 +696,26 @@ class FaceAnalysisResult {
         colorHistogram: ((json['colorHistogram'] as List?) ?? const [])
             .map((e) => (e as num).toDouble())
             .toList(),
-        qualityScore: (json['qualityScore'] as num?)?.toDouble() ?? 0.0,
+        qualityScore: (json['qualityScore'] as num?)?.round() ?? 0,
+        estimatedAgeRange:
+            (json['estimatedAgeRange'] as String?) ?? '22-32 Yaş Tahmini',
+        poseAndExpression:
+            (json['poseAndExpression'] as String?) ?? 'Cephe Görünüm • Net',
+        qualityRecommendation:
+            (json['qualityRecommendation'] as String?) ?? 'Optimum biyometrik kalite',
+        allFaces: ((json['allFaces'] as List?) ?? const [])
+            .map((e) => DetectedFaceCandidate.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        ocrExtractedLines:
+            List<String>.from((json['ocrExtractedLines'] as List?) ?? const []),
+        ocrDiscoveredPivots:
+            List<String>.from((json['ocrDiscoveredPivots'] as List?) ?? const []),
       );
 }
 
 class ExifForensicReport {
   final String sha256Hash;
+  final String md5Hash;
   final int fileSizeBytes;
   final int width;
   final int height;
@@ -377,6 +730,7 @@ class ExifForensicReport {
 
   const ExifForensicReport({
     required this.sha256Hash,
+    this.md5Hash = '',
     required this.fileSizeBytes,
     required this.width,
     required this.height,
@@ -398,6 +752,7 @@ class ExifForensicReport {
 
   Map<String, dynamic> toJson() => {
         'sha256Hash': sha256Hash,
+        'md5Hash': md5Hash,
         'fileSizeBytes': fileSizeBytes,
         'width': width,
         'height': height,
@@ -411,8 +766,10 @@ class ExifForensicReport {
         'forensicAlerts': forensicAlerts,
       };
 
-  factory ExifForensicReport.fromJson(Map<String, dynamic> json) => ExifForensicReport(
+  factory ExifForensicReport.fromJson(Map<String, dynamic> json) =>
+      ExifForensicReport(
         sha256Hash: (json['sha256Hash'] as String?) ?? '',
+        md5Hash: (json['md5Hash'] as String?) ?? '',
         fileSizeBytes: (json['fileSizeBytes'] as int?) ?? 0,
         width: (json['width'] as int?) ?? 0,
         height: (json['height'] as int?) ?? 0,
@@ -423,7 +780,8 @@ class ExifForensicReport {
         gpsLatitude: (json['gpsLatitude'] as num?)?.toDouble(),
         gpsLongitude: (json['gpsLongitude'] as num?)?.toDouble(),
         rawTags: Map<String, String>.from((json['rawTags'] as Map?) ?? const {}),
-        forensicAlerts: List<String>.from((json['forensicAlerts'] as List?) ?? const []),
+        forensicAlerts:
+            List<String>.from((json['forensicAlerts'] as List?) ?? const []),
       );
 }
 
@@ -437,39 +795,58 @@ class OsintFinding {
   final String url;
   final String archiveUrl;
   final int confidenceScore; // 0 - 100
-  final double? faceSimilarity; // 0 - 100 if visual match
-  final List<String> matchedFields;
-  final String fallbackLayer; // 'Birincil (On-Device/Direct)' | 'Fallback 1 (API/DoH)' | 'Fallback 2 (WebView/Dork)'
+  final double? faceSimilarityPercent; // 0 - 100 if visual match
+  final List<String> tags;
+  final String fallbackLayer;
   final DateTime timestamp;
   final bool isLiveVerified;
   final bool isFavorite;
   final Map<String, String> telemetry;
+  final Map<String, String> extractedData; // Concrete key-value facts displayed upfront!
+  final String scoreBreakdown; // Confidence 2.0 weighted breakdown
+  final String? actionablePivotValue;
+  final PivotType? actionablePivotType;
 
-  const OsintFinding({
+  OsintFinding({
     required this.id,
     required this.category,
     required this.sourceName,
     required this.title,
-    required this.subtitle,
+    String? subtitle,
     required this.snippet,
     required this.url,
-    required this.archiveUrl,
+    String? archiveUrl,
     required this.confidenceScore,
-    this.faceSimilarity,
-    required this.matchedFields,
-    required this.fallbackLayer,
-    required this.timestamp,
+    num? faceSimilarityPercent,
+    num? faceSimilarity,
+    List<String>? tags,
+    List<String>? matchedFields,
+    this.fallbackLayer = 'Birincil Sorgu Katmanı',
+    DateTime? timestamp,
     this.isLiveVerified = false,
     this.isFavorite = false,
     this.telemetry = const {},
-  });
+    this.extractedData = const {},
+    this.scoreBreakdown = '',
+    this.actionablePivotValue,
+    this.actionablePivotType,
+  })  : subtitle = subtitle ?? sourceName,
+        archiveUrl = archiveUrl ?? 'https://web.archive.org/web/*/$url',
+        faceSimilarityPercent = (faceSimilarityPercent ?? faceSimilarity)?.toDouble(),
+        tags = tags ?? matchedFields ?? const [],
+        timestamp = timestamp ?? DateTime.now();
+
+  double? get faceSimilarity => faceSimilarityPercent;
+  List<String> get matchedFields => tags;
 
   OsintFinding copyWith({
     bool? isFavorite,
     int? confidenceScore,
-    double? faceSimilarity,
+    double? faceSimilarityPercent,
     String? archiveUrl,
     bool? isLiveVerified,
+    Map<String, String>? extractedData,
+    String? scoreBreakdown,
   }) {
     return OsintFinding(
       id: id,
@@ -481,13 +858,17 @@ class OsintFinding {
       url: url,
       archiveUrl: archiveUrl ?? this.archiveUrl,
       confidenceScore: confidenceScore ?? this.confidenceScore,
-      faceSimilarity: faceSimilarity ?? this.faceSimilarity,
-      matchedFields: matchedFields,
+      faceSimilarityPercent: faceSimilarityPercent ?? this.faceSimilarityPercent,
+      tags: tags,
       fallbackLayer: fallbackLayer,
       timestamp: timestamp,
       isLiveVerified: isLiveVerified ?? this.isLiveVerified,
       isFavorite: isFavorite ?? this.isFavorite,
       telemetry: telemetry,
+      extractedData: extractedData ?? this.extractedData,
+      scoreBreakdown: scoreBreakdown ?? this.scoreBreakdown,
+      actionablePivotValue: actionablePivotValue,
+      actionablePivotType: actionablePivotType,
     );
   }
 
@@ -501,20 +882,24 @@ class OsintFinding {
         'url': url,
         'archiveUrl': archiveUrl,
         'confidenceScore': confidenceScore,
-        'faceSimilarity': faceSimilarity,
-        'matchedFields': matchedFields,
+        'faceSimilarityPercent': faceSimilarityPercent,
+        'tags': tags,
         'fallbackLayer': fallbackLayer,
         'timestamp': timestamp.toIso8601String(),
         'isLiveVerified': isLiveVerified,
         'isFavorite': isFavorite,
         'telemetry': telemetry,
+        'extractedData': extractedData,
+        'scoreBreakdown': scoreBreakdown,
+        'actionablePivotValue': actionablePivotValue,
+        'actionablePivotType': actionablePivotType?.name,
       };
 
   factory OsintFinding.fromJson(Map<String, dynamic> json) => OsintFinding(
         id: (json['id'] as String?) ?? '',
         category: OsintCategory.values.firstWhere(
           (c) => c.name == json['category'],
-          orElse: () => OsintCategory.socialUsername,
+          orElse: () => OsintCategory.usernameAndSocial,
         ),
         sourceName: (json['sourceName'] as String?) ?? '',
         title: (json['title'] as String?) ?? '',
@@ -523,13 +908,27 @@ class OsintFinding {
         url: (json['url'] as String?) ?? '',
         archiveUrl: (json['archiveUrl'] as String?) ?? '',
         confidenceScore: (json['confidenceScore'] as int?) ?? 50,
-        faceSimilarity: (json['faceSimilarity'] as num?)?.toDouble(),
-        matchedFields: List<String>.from((json['matchedFields'] as List?) ?? const []),
+        faceSimilarityPercent:
+            ((json['faceSimilarityPercent'] ?? json['faceSimilarity']) as num?)
+                ?.toDouble(),
+        tags: List<String>.from(
+            (json['tags'] ?? json['matchedFields']) as List? ?? const []),
         fallbackLayer: (json['fallbackLayer'] as String?) ?? 'Birincil',
-        timestamp: DateTime.tryParse((json['timestamp'] as String?) ?? '') ?? DateTime.now(),
+        timestamp: DateTime.tryParse((json['timestamp'] as String?) ?? '') ??
+            DateTime.now(),
         isLiveVerified: (json['isLiveVerified'] as bool?) ?? false,
         isFavorite: (json['isFavorite'] as bool?) ?? false,
         telemetry: Map<String, String>.from((json['telemetry'] as Map?) ?? const {}),
+        extractedData:
+            Map<String, String>.from((json['extractedData'] as Map?) ?? const {}),
+        scoreBreakdown: (json['scoreBreakdown'] as String?) ?? '',
+        actionablePivotValue: json['actionablePivotValue'] as String?,
+        actionablePivotType: json['actionablePivotType'] != null
+            ? PivotType.values.firstWhere(
+                (t) => t.name == json['actionablePivotType'],
+                orElse: () => PivotType.alias,
+              )
+            : null,
       );
 }
 
@@ -541,14 +940,14 @@ class DiscoveredPivot {
   final int confidence;
   final int depth;
 
-  const DiscoveredPivot({
-    required this.id,
+  DiscoveredPivot({
+    String? id,
     required this.type,
     required this.value,
     required this.reason,
     required this.confidence,
-    required this.depth,
-  });
+    this.depth = 1,
+  }) : id = id ?? 'piv_${value.hashCode.abs()}';
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -611,7 +1010,7 @@ class TimelineEvent {
 class GraphNode {
   final String id;
   final String label;
-  final String type; // 'target' | 'face' | 'username' | 'email' | 'phone' | 'turkey' | 'corporate' | 'forum'
+  final String type;
   final int confidence;
   final String? url;
 
@@ -644,14 +1043,14 @@ class GraphEdge {
   final String fromId;
   final String toId;
   final String relation;
-  final int weight;
+  final double weight;
 
   const GraphEdge({
     required this.fromId,
     required this.toId,
     required this.relation,
-    required this.weight,
-  });
+    double? weight,
+  }) : weight = weight ?? 1.0;
 
   Map<String, dynamic> toJson() => {
         'fromId': fromId,
@@ -664,7 +1063,7 @@ class GraphEdge {
         fromId: (json['fromId'] as String?) ?? '',
         toId: (json['toId'] as String?) ?? '',
         relation: (json['relation'] as String?) ?? '',
-        weight: (json['weight'] as int?) ?? 75,
+        weight: (json['weight'] as num?)?.toDouble() ?? 1.0,
       );
 }
 
@@ -681,6 +1080,9 @@ class InvestigationSession {
   final List<GraphEdge> graphEdges;
   final List<String> executionLogs;
   final bool offlineModeUsed;
+  final List<String> executiveFacts;
+  final List<String> diffSummary;
+  final String ethicsConsentLog;
 
   const InvestigationSession({
     required this.id,
@@ -695,6 +1097,9 @@ class InvestigationSession {
     required this.graphEdges,
     required this.executionLogs,
     this.offlineModeUsed = false,
+    this.executiveFacts = const [],
+    this.diffSummary = const [],
+    this.ethicsConsentLog = 'Kullanıcı Açık Kaynak & KVKK Etik Sorumluluk Beyanını Onayladı',
   });
 
   int get averageConfidence {
@@ -703,9 +1108,14 @@ class InvestigationSession {
     return (total / findings.length).round();
   }
 
-  int get highConfidenceCount => findings.where((f) => f.confidenceScore >= 80).length;
+  int get highConfidenceCount =>
+      findings.where((f) => f.confidenceScore >= 80).length;
+
+  int get liveVerifiedCount =>
+      findings.where((f) => f.isLiveVerified).length;
 
   InvestigationSession copyWith({
+    TargetProfile? target,
     List<OsintFinding>? findings,
     List<DiscoveredPivot>? pivots,
     List<TimelineEvent>? timeline,
@@ -713,11 +1123,13 @@ class InvestigationSession {
     List<GraphEdge>? graphEdges,
     FaceAnalysisResult? faceAnalysis,
     ExifForensicReport? exifReport,
+    List<String>? executiveFacts,
+    List<String>? diffSummary,
   }) {
     return InvestigationSession(
       id: id,
       createdAt: createdAt,
-      target: target,
+      target: target ?? this.target,
       faceAnalysis: faceAnalysis ?? this.faceAnalysis,
       exifReport: exifReport ?? this.exifReport,
       findings: findings ?? this.findings,
@@ -727,6 +1139,9 @@ class InvestigationSession {
       graphEdges: graphEdges ?? this.graphEdges,
       executionLogs: executionLogs,
       offlineModeUsed: offlineModeUsed,
+      executiveFacts: executiveFacts ?? this.executiveFacts,
+      diffSummary: diffSummary ?? this.diffSummary,
+      ethicsConsentLog: ethicsConsentLog,
     );
   }
 
@@ -743,17 +1158,25 @@ class InvestigationSession {
         'graphEdges': graphEdges.map((e) => e.toJson()).toList(),
         'executionLogs': executionLogs,
         'offlineModeUsed': offlineModeUsed,
+        'executiveFacts': executiveFacts,
+        'diffSummary': diffSummary,
+        'ethicsConsentLog': ethicsConsentLog,
       };
 
-  factory InvestigationSession.fromJson(Map<String, dynamic> json) => InvestigationSession(
+  factory InvestigationSession.fromJson(Map<String, dynamic> json) =>
+      InvestigationSession(
         id: (json['id'] as String?) ?? '',
-        createdAt: DateTime.tryParse((json['createdAt'] as String?) ?? '') ?? DateTime.now(),
-        target: TargetProfile.fromJson((json['target'] as Map<String, dynamic>?) ?? const {}),
+        createdAt:
+            DateTime.tryParse((json['createdAt'] as String?) ?? '') ?? DateTime.now(),
+        target: TargetProfile.fromJson(
+            (json['target'] as Map<String, dynamic>?) ?? const {}),
         faceAnalysis: json['faceAnalysis'] != null
-            ? FaceAnalysisResult.fromJson(json['faceAnalysis'] as Map<String, dynamic>)
+            ? FaceAnalysisResult.fromJson(
+                json['faceAnalysis'] as Map<String, dynamic>)
             : null,
         exifReport: json['exifReport'] != null
-            ? ExifForensicReport.fromJson(json['exifReport'] as Map<String, dynamic>)
+            ? ExifForensicReport.fromJson(
+                json['exifReport'] as Map<String, dynamic>)
             : null,
         findings: ((json['findings'] as List?) ?? const [])
             .map((e) => OsintFinding.fromJson(e as Map<String, dynamic>))
@@ -770,7 +1193,14 @@ class InvestigationSession {
         graphEdges: ((json['graphEdges'] as List?) ?? const [])
             .map((e) => GraphEdge.fromJson(e as Map<String, dynamic>))
             .toList(),
-        executionLogs: List<String>.from((json['executionLogs'] as List?) ?? const []),
+        executionLogs:
+            List<String>.from((json['executionLogs'] as List?) ?? const []),
         offlineModeUsed: (json['offlineModeUsed'] as bool?) ?? false,
+        executiveFacts:
+            List<String>.from((json['executiveFacts'] as List?) ?? const []),
+        diffSummary:
+            List<String>.from((json['diffSummary'] as List?) ?? const []),
+        ethicsConsentLog: (json['ethicsConsentLog'] as String?) ??
+            'Kullanıcı Açık Kaynak & KVKK Etik Sorumluluk Beyanını Onayladı',
       );
 }

@@ -2,6 +2,58 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../theme/panoptes_theme.dart';
 
+/// Continuously animated Argos Panoptes emblem with soft, smooth gaze & iris breathing
+class AnimatedPanoptesLogo extends StatefulWidget {
+  final double size;
+  final bool simplified;
+  final bool showReticle;
+
+  const AnimatedPanoptesLogo({
+    super.key,
+    this.size = 54,
+    this.simplified = false,
+    this.showReticle = true,
+  });
+
+  @override
+  State<AnimatedPanoptesLogo> createState() => _AnimatedPanoptesLogoState();
+}
+
+class _AnimatedPanoptesLogoState extends State<AnimatedPanoptesLogo>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return PanoptesLogo(
+          size: widget.size,
+          simplified: widget.simplified,
+          showReticle: widget.showReticle,
+          scanPulse: _controller.value,
+        );
+      },
+    );
+  }
+}
+
 /// Argos Panoptes Multi-Eye Geometric Emblem
 /// Implements the exact mythological & visual specification:
 /// - Pure #000000 pitch-black core
@@ -73,7 +125,6 @@ class _PanoptesMultiEyePainter extends CustomPainter {
   });
 
   static const List<_SatelliteEyeSpec> _fullSatellites = [
-    // 1. Top Crown Eye (gazing slightly down-left)
     _SatelliteEyeSpec(
       cx: 0.50,
       cy: 0.20,
@@ -84,7 +135,6 @@ class _PanoptesMultiEyePainter extends CustomPainter {
       opacity: 0.85,
       slitPupil: true,
     ),
-    // 2. Bottom Anchor Eye (gazing slightly up-right)
     _SatelliteEyeSpec(
       cx: 0.50,
       cy: 0.80,
@@ -95,7 +145,6 @@ class _PanoptesMultiEyePainter extends CustomPainter {
       opacity: 0.85,
       slitPupil: true,
     ),
-    // 3. Upper-Left Sentinel (gazing left)
     _SatelliteEyeSpec(
       cx: 0.24,
       cy: 0.30,
@@ -105,7 +154,6 @@ class _PanoptesMultiEyePainter extends CustomPainter {
       gazeDy: -0.004,
       opacity: 0.68,
     ),
-    // 4. Upper-Right Sentinel (gazing up-right)
     _SatelliteEyeSpec(
       cx: 0.76,
       cy: 0.30,
@@ -115,7 +163,6 @@ class _PanoptesMultiEyePainter extends CustomPainter {
       gazeDy: -0.006,
       opacity: 0.68,
     ),
-    // 5. Lower-Left Watcher (gazing down-left)
     _SatelliteEyeSpec(
       cx: 0.24,
       cy: 0.70,
@@ -125,7 +172,6 @@ class _PanoptesMultiEyePainter extends CustomPainter {
       gazeDy: 0.009,
       opacity: 0.60,
     ),
-    // 6. Lower-Right Watcher (gazing right)
     _SatelliteEyeSpec(
       cx: 0.76,
       cy: 0.70,
@@ -135,7 +181,6 @@ class _PanoptesMultiEyePainter extends CustomPainter {
       gazeDy: 0.005,
       opacity: 0.60,
     ),
-    // 7. Far-Left Peripheral (small, low opacity for depth)
     _SatelliteEyeSpec(
       cx: 0.135,
       cy: 0.50,
@@ -146,7 +191,6 @@ class _PanoptesMultiEyePainter extends CustomPainter {
       opacity: 0.42,
       slitPupil: true,
     ),
-    // 8. Far-Right Peripheral (small, low opacity for depth)
     _SatelliteEyeSpec(
       cx: 0.865,
       cy: 0.50,
@@ -186,6 +230,8 @@ class _PanoptesMultiEyePainter extends CustomPainter {
     final h = size.height;
     final minDim = math.min(w, h);
     final center = Offset(w / 2, h / 2);
+    final phase = scanPulse * math.pi * 2;
+    final breath = 0.5 + 0.5 * math.sin(phase);
 
     // 1. Pure Pitch-Black Obsidian Base
     final bgRect = RRect.fromRectAndRadius(
@@ -196,7 +242,7 @@ class _PanoptesMultiEyePainter extends CustomPainter {
     canvas.drawRRect(
       bgRect,
       Paint()
-        ..color = PanoptesColors.borderCrimson.withValues(alpha: 0.65)
+        ..color = PanoptesColors.borderCrimson.withValues(alpha: 0.55 + 0.30 * breath)
         ..style = PaintingStyle.stroke
         ..strokeWidth = math.max(1.0, minDim * 0.015),
     );
@@ -204,14 +250,14 @@ class _PanoptesMultiEyePainter extends CustomPainter {
     // 2. Geometric Surveillance Reticle (when full mode)
     if (showReticle && !simplified) {
       final ringPaint = Paint()
-        ..color = PanoptesColors.burgundyDeep.withValues(alpha: 0.32)
+        ..color = PanoptesColors.burgundyDeep.withValues(alpha: 0.25 + 0.20 * breath)
         ..style = PaintingStyle.stroke
         ..strokeWidth = math.max(0.8, minDim * 0.008);
-      canvas.drawCircle(center, minDim * 0.43, ringPaint);
+      canvas.drawCircle(center, minDim * (0.42 + 0.015 * breath), ringPaint);
       canvas.drawCircle(center, minDim * 0.29, ringPaint);
 
       final tickPaint = Paint()
-        ..color = PanoptesColors.crimson.withValues(alpha: 0.45)
+        ..color = PanoptesColors.crimson.withValues(alpha: 0.40 + 0.25 * breath)
         ..strokeWidth = math.max(1.0, minDim * 0.012);
       canvas.drawLine(Offset(w * 0.5, h * 0.04), Offset(w * 0.5, h * 0.10), tickPaint);
       canvas.drawLine(Offset(w * 0.5, h * 0.90), Offset(w * 0.5, h * 0.96), tickPaint);
@@ -219,9 +265,11 @@ class _PanoptesMultiEyePainter extends CustomPainter {
       canvas.drawLine(Offset(w * 0.90, h * 0.5), Offset(w * 0.96, h * 0.5), tickPaint);
     }
 
-    // 3. Draw Satellite Eyes
+    // 3. Draw Satellite Eyes with soft phase-shifted gaze motion
     final satellites = simplified ? _compactSatellites : _fullSatellites;
-    for (final sat in satellites) {
+    for (int i = 0; i < satellites.length; i++) {
+      final sat = satellites[i];
+      final satShift = math.sin(phase + i * 0.8) * 0.007;
       _drawGeometricEye(
         canvas: canvas,
         size: size,
@@ -229,15 +277,16 @@ class _PanoptesMultiEyePainter extends CustomPainter {
         cy: sat.cy * h,
         rx: sat.rx * w,
         ry: sat.ry * h,
-        irisOffset: Offset(sat.gazeDx * w, sat.gazeDy * h),
-        opacity: sat.opacity,
+        irisOffset: Offset((sat.gazeDx + satShift) * w, sat.gazeDy * h),
+        opacity: (sat.opacity + 0.08 * math.cos(phase + i)).clamp(0.3, 1.0),
         isCentral: false,
         slitPupil: sat.slitPupil,
       );
     }
 
     // 4. Draw Central Sovereign Eye of Argos Panoptes
-    final pulseOffset = math.sin(scanPulse * math.pi * 2) * (w * 0.012);
+    final pulseOffsetX = math.sin(phase) * (w * 0.014);
+    final pulseOffsetY = math.cos(phase * 2) * (h * 0.005);
     _drawGeometricEye(
       canvas: canvas,
       size: size,
@@ -245,7 +294,7 @@ class _PanoptesMultiEyePainter extends CustomPainter {
       cy: h * 0.50,
       rx: simplified ? w * 0.36 : w * 0.255,
       ry: simplified ? h * 0.21 : h * 0.145,
-      irisOffset: Offset(pulseOffset, 0),
+      irisOffset: Offset(pulseOffsetX, pulseOffsetY),
       opacity: 1.0,
       isCentral: true,
       slitPupil: true,
@@ -272,14 +321,12 @@ class _PanoptesMultiEyePainter extends CustomPainter {
       ..close();
 
     if (isCentral) {
-      // Dark interior fill so central eye cuts cleanly over any reticle lines
       canvas.drawPath(
         eyePath,
         Paint()..color = const Color(0xFF050508),
       );
     }
 
-    // Sharp White/Light-Gray Stroke Contour
     final contourPaint = Paint()
       ..color = const Color(0xFFF4F4F5).withValues(alpha: opacity)
       ..style = PaintingStyle.stroke
@@ -289,11 +336,9 @@ class _PanoptesMultiEyePainter extends CustomPainter {
           : math.max(1.1, minDim * 0.019);
     canvas.drawPath(eyePath, contourPaint);
 
-    // Iris Center (with subtle gaze vector)
     final irisCenter = Offset(cx + irisOffset.dx, cy + irisOffset.dy);
     final irisRadius = isCentral ? ry * 0.66 : ry * 0.62;
 
-    // Crimson-Burgundy Iris Ring (Stroke-focused)
     final irisPaint = Paint()
       ..color = (isCentral ? PanoptesColors.crimson : PanoptesColors.burgundy)
           .withValues(alpha: math.min(1.0, opacity + 0.12))
@@ -304,7 +349,6 @@ class _PanoptesMultiEyePainter extends CustomPainter {
     canvas.drawCircle(irisCenter, irisRadius, irisPaint);
 
     if (isCentral && !simplified) {
-      // Inner Deep Burgundy Ring
       canvas.drawCircle(
         irisCenter,
         irisRadius * 0.68,
@@ -315,7 +359,6 @@ class _PanoptesMultiEyePainter extends CustomPainter {
       );
     }
 
-    // Pupil (Sharp vertical slit or geometric core)
     if (slitPupil) {
       final slitHalf = irisRadius * 0.76;
       canvas.drawLine(
@@ -338,7 +381,7 @@ class _PanoptesMultiEyePainter extends CustomPainter {
     } else {
       canvas.drawCircle(
         irisCenter,
-         math.max(1.3, irisRadius * 0.30),
+        math.max(1.3, irisRadius * 0.30),
         Paint()..color = const Color(0xFFF4F4F5).withValues(alpha: opacity),
       );
     }

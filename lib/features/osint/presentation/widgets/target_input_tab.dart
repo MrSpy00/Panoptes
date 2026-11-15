@@ -39,6 +39,13 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
     'Trabzon',
   ];
 
+  static const List<String> _workspaces = [
+    'Genel Operasyon',
+    'Red Team / OSINT',
+    'Kurumsal İnceleme',
+    'Biyometrik Doğrulama',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -105,10 +112,11 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
       if (picked == null) return;
       final bytes = await picked.readAsBytes();
       final current = ref.read(panoptesProvider).draftTarget;
-      ref.read(panoptesProvider.notifier).updateDraftTarget(
+      await ref.read(panoptesProvider.notifier).updateDraftTarget(
             current.copyWith(
               photoPath: picked.path,
               photoBytes: bytes,
+              selectedFaceIndex: 0,
             ),
           );
     } catch (e) {
@@ -120,9 +128,19 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
     }
   }
 
+  void _clearControllers() {
+    _nameCtrl.clear();
+    _ageCtrl.clear();
+    _cityCtrl.clear();
+    _userCtrl.clear();
+    _emailCtrl.clear();
+    _phoneCtrl.clear();
+    _orgCtrl.clear();
+    _notesCtrl.clear();
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Safely listen to external draftTarget changes outside build mutation
     ref.listen<TargetProfile>(
       panoptesProvider.select((s) => s.draftTarget),
       (prev, next) {
@@ -134,12 +152,18 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
     final notifier = ref.read(panoptesProvider.notifier);
     final strings = state.strings;
     final target = state.draftTarget;
+    final facePreview = state.draftFacePreview;
     final p = PanoptesPalette.of(context);
+
+    final usernameCandidates = target.candidateUsernames;
+    final emailCandidates = target.candidateEmails;
+    final plateDetected = target.detectedTurkishPlate;
+    final cryptoDetected = target.detectedCryptoWallet;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 96),
       children: [
-        // 1. Tactical Hero Banner
+        // 1. Tactical Hero Banner with Animated Argos Panoptes Emblem
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -147,36 +171,88 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: p.borderCrimson, width: 1),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const PanoptesLogo(size: 54, showReticle: true),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      strings.appSubtitle,
-                      style: TextStyle(
-                        color: p.crimsonText,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                        fontFamily: 'monospace',
-                      ),
+              Row(
+                children: [
+                  const AnimatedPanoptesLogo(size: 54, showReticle: true),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          strings.appSubtitle,
+                          style: TextStyle(
+                            color: p.crimsonText,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          strings.isTr
+                              ? 'Fotoğraf + kimlik pivotları ile cihaz içi çoklu yüz & OCR analizi, mutasyon motoru, çoklu kaynak WHOIS/DoH/crt.sh ve Türkiye sicil/kamu taraması.'
+                              : 'On-device multi-face & OCR forensics, username/email mutation engine, multi-source WHOIS/DoH/crt.sh, and Turkish OSINT recon.',
+                          style: TextStyle(
+                            color: p.textSecondary,
+                            fontSize: 11.5,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      strings.isTr
-                          ? 'Fotoğraf + kimlik pivotları ile cihaz içi 192-D yüz doğrulama, Türkiye sicil/forum/akademik taraması ve çok katmanlı ters görsel istihbarat.'
-                          : 'On-device 192-D biometric face verification, Turkish & global OSINT recon, and multi-engine reverse visual pipeline.',
-                      style: TextStyle(
-                        color: p.textSecondary,
-                        fontSize: 11.5,
-                        height: 1.35,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Investigation Workspace Selector
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: _workspaces.map((ws) {
+                    final active = state.activeWorkspace == ws;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(6),
+                        onTap: () => notifier.setWorkspace(ws),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: active ? p.crimson : p.surfaceBase,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: active ? p.crimson : p.borderSubtle,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.workspaces_outline,
+                                size: 12,
+                                color: active ? Colors.white : p.textMuted,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                ws,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: active ? Colors.white : p.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    );
+                  }).toList(),
                 ),
               ),
             ],
@@ -184,71 +260,122 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
         ),
         const SizedBox(height: 10),
 
-        // Quick Action Row: Load Sample Scenario / Clear
+        // Quick Action Row: Load Sample Scenario / Clear Form / Reset Active Session
         Row(
           children: [
             Expanded(
-              flex: 3,
               child: OutlinedButton(
-                onPressed: () {
-                  notifier.loadSampleScenario();
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                ),
+                onPressed: () async {
+                  await notifier.loadSampleScenario();
                   final loaded = ref.read(panoptesProvider).draftTarget;
                   _applyTargetToControllers(loaded);
-                  setState(() {});
+                  if (mounted) setState(() {});
                 },
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.auto_fix_high, size: 16, color: p.crimson),
-                    const SizedBox(width: 6),
+                    Icon(Icons.auto_fix_high, size: 15, color: p.crimson),
+                    const SizedBox(width: 5),
                     Flexible(
                       child: Text(
-                        strings.loadSampleTarget,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        strings.isTr ? 'Örnek Senaryo' : 'Demo Target',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Expanded(
-              flex: 2,
               child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                ),
                 onPressed: () {
                   notifier.clearDraft();
-                  _nameCtrl.clear();
-                  _ageCtrl.clear();
-                  _cityCtrl.clear();
-                  _userCtrl.clear();
-                  _emailCtrl.clear();
-                  _phoneCtrl.clear();
-                  _orgCtrl.clear();
-                  _notesCtrl.clear();
+                  _clearControllers();
                   setState(() {});
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        strings.isTr
+                            ? 'Girdi formu temizlendi.'
+                            : 'Input form cleared.',
+                      ),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
                 },
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.restart_alt, size: 16),
+                    const Icon(Icons.cleaning_services_outlined, size: 15),
                     const SizedBox(width: 5),
                     Flexible(
                       child: Text(
                         strings.clearAll,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
+            if (state.currentSession != null) ...[
+              const SizedBox(width: 6),
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    side: BorderSide(color: p.crimson),
+                  ),
+                  onPressed: () {
+                    notifier.clearDraftAndActiveSession();
+                    _clearControllers();
+                    setState(() {});
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          strings.isTr
+                              ? 'Form ve aktif bulgu dosyası sıfırlandı.'
+                              : 'Form and active dossier reset.',
+                        ),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.restart_alt, size: 15, color: p.crimsonText),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          strings.isTr ? 'Dosyayı Sıfırla' : 'Reset Dossier',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: p.crimsonText,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 12),
 
-        // 2. Photo Acquisition & Biometric Preview Card
+        // 2. Photo Acquisition, Multi-Face Target Selector & OCR Preview Card
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -269,7 +396,7 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.4,
                         color: p.textPrimary,
                       ),
                     ),
@@ -307,14 +434,17 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: target.photoBytes != null
-                        ? Image.memory(target.photoBytes!, fit: BoxFit.cover)
+                        ? Image.memory(
+                            facePreview?.croppedFaceBytes ?? target.photoBytes!,
+                            fit: BoxFit.cover,
+                          )
                         : Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(Icons.person_search_outlined, size: 28, color: p.textMuted),
                               const SizedBox(height: 4),
                               Text(
-                                'YÜZ / EXIF',
+                                'YÜZ / OCR',
                                 style: TextStyle(
                                   fontSize: 9,
                                   fontFamily: 'monospace',
@@ -340,8 +470,7 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                                 Flexible(
                                   child: Text(
                                     strings.pickCamera,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
                                   ),
                                 ),
                               ],
@@ -361,8 +490,7 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                                 Flexible(
                                   child: Text(
                                     strings.pickGallery,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
                                   ),
                                 ),
                               ],
@@ -374,12 +502,170 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                   ),
                 ],
               ),
+
+              // Live Biometric Preview & Multi-Face Selector
+              if (facePreview != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: p.surfaceBase,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: p.borderSubtle),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          _MiniTag(
+                            label: 'Yüz Sayısı: ${facePreview.faceCount}',
+                            color: p.crimson,
+                          ),
+                          _MiniTag(
+                            label: 'Kalite: %${facePreview.qualityScore}',
+                            color: facePreview.qualityScore >= 75
+                                ? PanoptesColors.statusHigh
+                                : PanoptesColors.statusMedium,
+                          ),
+                          _MiniTag(
+                            label: 'Tahmini Yaş: ${facePreview.estimatedAgeRange}',
+                            color: p.crimson,
+                          ),
+                          _MiniTag(
+                            label: facePreview.headPoseSummary,
+                            color: p.textSecondary,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        facePreview.qualityRecommendation,
+                        style: TextStyle(fontSize: 11, color: p.textSecondary),
+                      ),
+                      if (facePreview.allFaces.length > 1) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Fotoğrafta Birden Fazla Yüz Tespit Edildi — Hedef Yüzü Seçin:',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: p.crimsonText,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: facePreview.allFaces.map((fc) {
+                              final selected = fc.index == facePreview.selectedFaceIndex;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(8),
+                                  onTap: () => notifier.selectTargetFace(fc.index),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: selected ? p.crimsonTintBg : p.surfaceCard,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: selected ? p.crimson : p.borderSubtle,
+                                        width: selected ? 1.5 : 1.0,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(4),
+                                          child: Image.memory(
+                                            fc.croppedBytes,
+                                            width: 36,
+                                            height: 36,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Yüz #${fc.index + 1}',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w800,
+                                                color: p.textPrimary,
+                                              ),
+                                            ),
+                                            Text(
+                                              'Kalite %${fc.qualityScore}',
+                                              style: TextStyle(
+                                                fontSize: 9.5,
+                                                color: p.textSecondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ],
+                      if (facePreview.ocrDiscoveredPivots.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'OCR / Görsel Metinden Keşfedilen Pivotlar (Forma Aktarmak İçin Dokunun):',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: p.crimsonText,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: facePreview.ocrDiscoveredPivots.map((piv) {
+                            return ActionChip(
+                              label: Text(piv, style: const TextStyle(fontSize: 10.5)),
+                              onPressed: () {
+                                if (piv.startsWith('E-Posta:')) {
+                                  _emailCtrl.text = piv.replaceFirst('E-Posta:', '').trim();
+                                } else if (piv.startsWith('Kullanıcı Adı:')) {
+                                  _userCtrl.text = piv
+                                      .replaceFirst('Kullanıcı Adı:', '')
+                                      .replaceAll('@', '')
+                                      .trim();
+                                } else if (piv.startsWith('Alan Adı:')) {
+                                  _orgCtrl.text = piv.replaceFirst('Alan Adı:', '').trim();
+                                } else if (piv.startsWith('Telefon:')) {
+                                  _phoneCtrl.text = piv.replaceFirst('Telefon:', '').trim();
+                                }
+                                _pushDraft();
+                                setState(() {});
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
         const SizedBox(height: 12),
 
-        // 3. Identity Pivot Input Form (Full-width responsive inputs so labels never clip)
+        // 3. Identity Pivot Input Form (Full-width responsive inputs with zero label clipping)
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -402,7 +688,7 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.4,
                         color: p.textPrimary,
                       ),
                     ),
@@ -412,7 +698,10 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
               const SizedBox(height: 12),
               TextField(
                 controller: _nameCtrl,
-                onChanged: (_) => _pushDraft(),
+                onChanged: (_) {
+                  _pushDraft();
+                  setState(() {});
+                },
                 decoration: InputDecoration(
                   labelText: strings.fieldFullName,
                   hintText: 'Örn: Ahmet Yılmaz',
@@ -422,10 +711,13 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
               const SizedBox(height: 10),
               TextField(
                 controller: _userCtrl,
-                onChanged: (_) => _pushDraft(),
+                onChanged: (_) {
+                  _pushDraft();
+                  setState(() {});
+                },
                 decoration: InputDecoration(
                   labelText: strings.fieldUsername,
-                  hintText: 'Örn: mrspy00 (Maigret / Sherlock / Forum)',
+                  hintText: 'Örn: mrspy00 (GitHub, Keybase, Telegram, Forum)',
                   prefixIcon: const Icon(Icons.alternate_email, size: 19),
                 ),
               ),
@@ -443,7 +735,6 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                 ),
               ),
               const SizedBox(height: 8),
-              // Overflow-proof Horizontal Turkish City Selector
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -484,7 +775,10 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
               const SizedBox(height: 10),
               TextField(
                 controller: _ageCtrl,
-                onChanged: (_) => _pushDraft(),
+                onChanged: (_) {
+                  _pushDraft();
+                  setState(() {});
+                },
                 decoration: InputDecoration(
                   labelText: strings.fieldBirthAge,
                   hintText: 'Örn: 1996 / 26-30',
@@ -495,7 +789,10 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
               TextField(
                 controller: _emailCtrl,
                 keyboardType: TextInputType.emailAddress,
-                onChanged: (_) => _pushDraft(),
+                onChanged: (_) {
+                  _pushDraft();
+                  setState(() {});
+                },
                 decoration: InputDecoration(
                   labelText: strings.fieldEmail,
                   hintText: 'isim@alanadi.com',
@@ -506,7 +803,10 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
               TextField(
                 controller: _phoneCtrl,
                 keyboardType: TextInputType.phone,
-                onChanged: (_) => _pushDraft(),
+                onChanged: (_) {
+                  _pushDraft();
+                  setState(() {});
+                },
                 decoration: InputDecoration(
                   labelText: strings.fieldPhone,
                   hintText: '+90 5xx xxx xx xx',
@@ -516,10 +816,13 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
               const SizedBox(height: 10),
               TextField(
                 controller: _orgCtrl,
-                onChanged: (_) => _pushDraft(),
+                onChanged: (_) {
+                  _pushDraft();
+                  setState(() {});
+                },
                 decoration: InputDecoration(
                   labelText: strings.fieldOccupation,
-                  hintText: 'Şirket / Üniversite / Meslek (Ticaret Sicili & YÖK)',
+                  hintText: 'Şirket / Üniversite / Domain (aegissoft.com.tr)',
                   prefixIcon: const Icon(Icons.business_outlined, size: 19),
                 ),
               ),
@@ -527,13 +830,81 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
               TextField(
                 controller: _notesCtrl,
                 maxLines: 2,
-                onChanged: (_) => _pushDraft(),
+                onChanged: (_) {
+                  _pushDraft();
+                  setState(() {});
+                },
                 decoration: InputDecoration(
                   labelText: strings.fieldNotes,
-                  hintText: 'Ek anahtar kelimeler, eski nickler veya bağlam notları',
+                  hintText: 'Anahtar kelimeler, 34 ABC 123 plaka veya BTC/ETH cüzdan adresi',
                   prefixIcon: const Icon(Icons.notes_outlined, size: 19),
                 ),
               ),
+
+              // Live Mutation & Detector Preview Chips
+              if (usernameCandidates.isNotEmpty ||
+                  emailCandidates.isNotEmpty ||
+                  plateDetected != null ||
+                  cryptoDetected != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: p.surfaceBase,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: p.borderSubtle),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'OTOMATİK TÜRETİLEN ÇAPRAZ SORGU ADAYLARI:',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'monospace',
+                          color: p.crimsonText,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (usernameCandidates.isNotEmpty)
+                        Text(
+                          '• Nick Mutasyonları (${usernameCandidates.length}): ${usernameCandidates.take(6).map((u) => "@$u").join(", ")}',
+                          style: TextStyle(fontSize: 11, color: p.textSecondary),
+                        ),
+                      if (emailCandidates.isNotEmpty)
+                        Text(
+                          '• E-Posta Tahminleri (${emailCandidates.length}): ${emailCandidates.take(3).join(", ")}',
+                          style: TextStyle(fontSize: 11, color: p.textSecondary),
+                        ),
+                      if (target.candidateDomains.isNotEmpty)
+                        Text(
+                          '• Çoklu-Kaynak WHOIS / RDAP / DoH / crt.sh Hedefi: ${target.candidateDomains.join(", ")}',
+                          style: TextStyle(fontSize: 11, color: p.textSecondary),
+                        ),
+                      if (plateDetected != null)
+                        Text(
+                          '• Araç Plakası Algılandı: ${plateDetected.$1} (${plateDetected.$2})',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: PanoptesColors.statusHigh,
+                          ),
+                        ),
+                      if (cryptoDetected != null)
+                        Text(
+                          '• Kripto Cüzdan Algılandı: [${cryptoDetected.$1}] ${cryptoDetected.$2}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: PanoptesColors.statusHigh,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -617,8 +988,8 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
                     SnackBar(
                       content: Text(
                         strings.isTr
-                            ? 'Lütfen en az bir fotoğraf veya kimlik bilgisi girin ya da "Örnek Senaryo Yükle" butonuna dokunun.'
-                            : 'Please provide at least one photo or identity field, or tap "Load Demo Target".',
+                            ? 'Lütfen en az bir fotoğraf veya kimlik bilgisi girin ya da "Örnek Senaryo" butonuna dokunun.'
+                            : 'Please provide at least one photo or identity field, or tap "Demo Target".',
                       ),
                     ),
                   );
@@ -643,6 +1014,34 @@ class _TargetInputTabState extends ConsumerState<TargetInputTab> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _MiniTag extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _MiniTag({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.7)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontFamily: 'monospace',
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
     );
   }
 }
