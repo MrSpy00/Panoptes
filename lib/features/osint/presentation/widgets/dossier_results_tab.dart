@@ -7,11 +7,18 @@ import '../../domain/models/osint_models.dart';
 import '../providers/osint_controller.dart';
 import 'webview_recon_sheet.dart';
 
-class DossierResultsTab extends ConsumerWidget {
+class DossierResultsTab extends ConsumerStatefulWidget {
   const DossierResultsTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DossierResultsTab> createState() => _DossierResultsTabState();
+}
+
+class _DossierResultsTabState extends ConsumerState<DossierResultsTab> {
+  bool _detailedMode = false;
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(panoptesProvider);
     final notifier = ref.read(panoptesProvider.notifier);
     final strings = state.strings;
@@ -92,6 +99,11 @@ class DossierResultsTab extends ConsumerWidget {
     }
 
     final filtered = state.filteredFindings;
+    final highSignalOnly =
+        filtered.where((f) => f.isLiveVerified || f.confidenceScore >= 60).toList();
+    final visibleFindings =
+        (!_detailedMode && highSignalOnly.isNotEmpty) ? highSignalOnly : filtered;
+    final hiddenManualCount = filtered.length - visibleFindings.length;
     final liveVerifiedCount = session.findings.where((f) => f.isLiveVerified).length;
 
     return CustomScrollView(
@@ -548,6 +560,69 @@ class DossierResultsTab extends ConsumerWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () => setState(() => _detailedMode = false),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 7),
+                          decoration: BoxDecoration(
+                            color: !_detailedMode ? PanoptesColors.crimson : p.surfaceCard,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: !_detailedMode ? PanoptesColors.crimsonBright : p.borderSubtle,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Basit & Net (${highSignalOnly.length})',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: !_detailedMode ? Colors.white : p.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () => setState(() => _detailedMode = true),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 7),
+                          decoration: BoxDecoration(
+                            color: _detailedMode ? PanoptesColors.crimson : p.surfaceCard,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: _detailedMode ? PanoptesColors.crimsonBright : p.borderSubtle,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Detaylı / Teknik (${filtered.length})',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: _detailedMode ? Colors.white : p.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (!_detailedMode && hiddenManualCount > 0) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    '$hiddenManualCount doğrulanmamış manuel kontrol / dork linki Basit & Net modda gizlendi.',
+                    style: TextStyle(fontSize: 10.5, color: p.textMuted),
+                  ),
+                ],
               ],
             ),
           ),
@@ -557,18 +632,21 @@ class DossierResultsTab extends ConsumerWidget {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(14, 4, 14, 100),
           sliver: SliverList.separated(
-            itemCount: filtered.length,
+            itemCount: visibleFindings.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
-              final item = filtered[index];
+              final item = visibleFindings[index];
               return _FindingIntelCard(
+                key: ValueKey('${item.id}_$_detailedMode'),
                 finding: item,
+                detailedMode: _detailedMode,
                 onToggleFavorite: () => notifier.toggleFindingFavorite(item.id),
                 onOpenWebViewBridge: () {
                   WebViewReconSheet.open(
                     context,
                     url: item.url,
                     title: item.sourceName,
+                    targetImageBytes: session.target.photoBytes,
                     onVerifyCandidateImage: (imgUrl) {
                       notifier.compareCandidateFaceUrl(imgUrl);
                       notifier.setActiveTab(2);
@@ -668,19 +746,46 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
-class _FindingIntelCard extends StatelessWidget {
+class _FindingIntelCard extends StatefulWidget {
   final OsintFinding finding;
+  final bool detailedMode;
   final VoidCallback onToggleFavorite;
   final VoidCallback onOpenWebViewBridge;
 
   const _FindingIntelCard({
+    super.key,
     required this.finding,
+    this.detailedMode = false,
     required this.onToggleFavorite,
     required this.onOpenWebViewBridge,
   });
 
   @override
+  State<_FindingIntelCard> createState() => _FindingIntelCardState();
+}
+
+class _FindingIntelCardState extends State<_FindingIntelCard> {
+  late bool _showTechnical;
+
+  @override
+  void initState() {
+    super.initState();
+    _showTechnical = widget.detailedMode;
+  }
+
+  @override
+  void didUpdateWidget(covariant _FindingIntelCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.detailedMode != widget.detailedMode) {
+      _showTechnical = widget.detailedMode;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final finding = widget.finding;
+    final onToggleFavorite = widget.onToggleFavorite;
+    final onOpenWebViewBridge = widget.onOpenWebViewBridge;
     final p = PanoptesPalette.of(context);
     final score = finding.confidenceScore;
     final badgeColor = score >= 85
@@ -800,8 +905,8 @@ class _FindingIntelCard extends StatelessWidget {
             ),
           ),
 
-          // Score 2.0 Breakdown
-          if (finding.scoreBreakdown.isNotEmpty) ...[
+          // Score Breakdown (shown only when technical details are visible)
+          if (_showTechnical && finding.scoreBreakdown.isNotEmpty) ...[
             const SizedBox(height: 3),
             Text(
               finding.scoreBreakdown,
@@ -877,58 +982,87 @@ class _FindingIntelCard extends StatelessWidget {
           ],
 
           const SizedBox(height: 8),
-          // Explanation / Snippet
-          Text(
-            finding.snippet,
-            style: TextStyle(
-              color: p.textSecondary,
-              fontSize: 12,
-              height: 1.4,
+          if (!widget.detailedMode)
+            InkWell(
+              onTap: () => setState(() => _showTechnical = !_showTechnical),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _showTechnical ? Icons.expand_less : Icons.expand_more,
+                      size: 16,
+                      color: p.textMuted,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _showTechnical ? 'Teknik Detayları Gizle' : 'Teknik Detayları Göster',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: p.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
+          if (_showTechnical) ...[
+            const SizedBox(height: 4),
+            // Explanation / Snippet
+            Text(
+              finding.snippet,
+              style: TextStyle(
+                color: p.textSecondary,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
 
-          // Matched Pivot Chips + Fallback Layer Badge
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              ...finding.matchedFields.map(
-                (m) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                  decoration: BoxDecoration(
-                    color: p.surfaceElevated,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: p.borderStrong, width: 0.8),
-                  ),
-                  child: Text(
-                    m,
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      fontFamily: 'monospace',
-                      color: p.textPrimary,
+            // Matched Pivot Chips + Fallback Layer Badge
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                ...finding.matchedFields.map(
+                  (m) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: p.surfaceElevated,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: p.borderStrong, width: 0.8),
+                    ),
+                    child: Text(
+                      m,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontFamily: 'monospace',
+                        color: p.textPrimary,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                decoration: BoxDecoration(
-                  color: p.crimsonTintBg,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  finding.fallbackLayer,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: p.crimsonText,
-                    fontFamily: 'monospace',
-                    fontWeight: FontWeight.w600,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: p.crimsonTintBg,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    finding.fallbackLayer,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: p.crimsonText,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
 
           // Action Buttons Row (WebView Recon Bridge / Direct Link / Wayback Archive)
           const SizedBox(height: 12),

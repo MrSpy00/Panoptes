@@ -112,7 +112,7 @@ void main() {
     );
 
     final md = export.generateMarkdownReport(session, template: ReportTemplate.legalKvkk);
-    expect(md, contains('PANOPTES v2.0'));
+    expect(md, contains('PANOPTES v1.0'));
     expect(md, contains('KVKK'));
     expect(md, contains('MrSpy Aegis'));
 
@@ -125,6 +125,19 @@ void main() {
 
     final pdfBytes = await export.generatePdfBytes(session);
     expect(pdfBytes.length, greaterThan(500));
+  });
+
+  test('OCR pivot parser extracts handles, emails, phones, URLs, and TR plates without binary garbage', () {
+    final pivots = FaceForensicsService.extractOcrPivotsFromLines([
+      'İletişim: ali.yilmaz@example.com ve @aliyilmaz_tr',
+      'Telefon +90 532 123 45 67 - Araç 34 ABC 123',
+      'Profil: https://github.com/aliyilmaz',
+    ]);
+    expect(pivots, contains('E-Posta: ali.yilmaz@example.com'));
+    expect(pivots, contains('Kullanıcı Adı: @aliyilmaz_tr'));
+    expect(pivots, contains('Telefon: +905321234567'));
+    expect(pivots, contains('TR Plaka: 34 ABC 123'));
+    expect(pivots, contains('URL: https://github.com/aliyilmaz'));
   });
 
   testWidgets(

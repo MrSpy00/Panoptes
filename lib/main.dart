@@ -113,7 +113,7 @@ class PanoptesShellScreen extends ConsumerWidget {
                           border: Border.all(color: p.crimson, width: 0.8),
                         ),
                         child: Text(
-                          'v2.0 EDGE',
+                          'v1.0 EDGE',
                           style: TextStyle(
                             color: p.crimsonText,
                             fontSize: 8.5,

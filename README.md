@@ -2,7 +2,7 @@
 
 <img src="assets/branding/panoptes_logo.svg" alt="Argos Panoptes — Multi-Eye Geometric Emblem" width="160" height="160" />
 
-# PANOPTES v2.0
+# PANOPTES v1.0
 ### Bağımsız On-Device Biyometrik & Derin Açık Kaynak İstihbarat (OSINT) Mobil Platformu
 ### Standalone On-Device Biometric & Deep Open-Source Intelligence (OSINT) Mobile Platform
 
@@ -16,7 +16,7 @@
   </a>
 </p>
 
-![Version](https://img.shields.io/badge/Version-v2.0.0-E11D48?style=flat-square)
+![Version](https://img.shields.io/badge/Version-v1.0.0-E11D48?style=flat-square)
 ![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Desktop-E11D48?style=flat-square)
 ![Architecture](https://img.shields.io/badge/Mimari-100%25%20Edge%20%2B%20Optional%20Supabase-BE123C?style=flat-square)
 ![Security](https://img.shields.io/badge/OPSEC-R8%20Obfuscated%20%2B%20Anti--Frida%20%2B%20PV2%20Vault-10B981?style=flat-square)
@@ -42,7 +42,7 @@ Uygulamanın merkezindeki özel üretim **9-gözlü geometrik SVG amblemi** ([`a
 
 ---
 
-## 2. v2.0 Derin OSINT & Güvenlik Katmanları
+## 2. v1.0 Derin OSINT & Güvenlik Katmanları
 
 ### 2.1 Pivot & Keşif Katmanı (Otomatik Varyasyon & Bağlantı Motoru)
 - **Username Mutation Engine:** Türkçe karakter normalizasyonu (`ı->i, ğ->g, ü->u, ş->s, ö->o, ç->c`) + noktalı, alt çizgili, baş harfli ve doğum yılı (`98`, `1998`) ekli kullanıcı adı varyasyonlarını otomatik üretir ve çapraz tarar.
@@ -145,7 +145,7 @@ The custom-crafted **9-eye geometric SVG emblem** ([`assets/branding/panoptes_lo
 
 ---
 
-## 2. v2.0 Deep OSINT & Security Capabilities
+## 2. v1.0 Deep OSINT & Security Capabilities
 
 1. **Pivot & Mutation Layer:**
    - **Username Mutation Engine** (Turkish-aware ASCII slugging + birth-year & separator permutations),

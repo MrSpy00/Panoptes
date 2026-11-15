@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:exif/exif.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image/image.dart' as img;
 import '../domain/models/osint_models.dart';
 
@@ -200,7 +201,10 @@ class FaceForensicsService {
       faceCount: candidates.length,
     );
 
-    final (ocrLines, ocrPivots) = _extractEmbeddedTextAndPivots(imageBytes, decoded);
+    final (ocrLines, ocrPivots) = await _extractVisualOcrAndPivots(
+      imageBytes: imageBytes,
+      filePath: filePath,
+    );
 
     return FaceAnalysisResult(
       faceDetected: candidates.isNotEmpty,
@@ -245,30 +249,9 @@ class FaceForensicsService {
   }
 
   String _estimateAgeBand(img.Image cropped, double? smileProb) {
-    // High-frequency skin micro-texture variance & periocular gradient density
-    final sample = img.copyResize(cropped, width: 48, height: 48);
-    double hfEnergy = 0.0;
-    for (int y = 10; y < 38; y++) {
-      for (int x = 10; x < 38; x++) {
-        final c = sample.getPixel(x, y);
-        final r = sample.getPixel(x + 1, y);
-        final d = sample.getPixel(x, y + 1);
-        final lumC = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
-        final lumR = 0.299 * r.r + 0.587 * r.g + 0.114 * r.b;
-        final lumD = 0.299 * d.r + 0.587 * d.g + 0.114 * d.b;
-        hfEnergy += (lumC - lumR).abs() + (lumC - lumD).abs();
-      }
-    }
-    final avgGradient = hfEnergy / (28 * 28 * 2.0);
-    if (avgGradient < 6.5) {
-      return '18–26 Yaş Aralığı (Genç Yetişkin)';
-    } else if (avgGradient < 11.5) {
-      return '22–32 Yaş Aralığı (Yetişkin)';
-    } else if (avgGradient < 16.5) {
-      return '28–38 Yaş Aralığı (Yetişkin)';
-    } else {
-      return '35–48 Yaş Aralığı (Yetişkin)';
-    }
+    // Do NOT fabricate an age estimate from raw JPEG pixel gradients.
+    // On-device age classification requires a dedicated calibrated TFLite age model.
+    return 'Cihaz İçi Yaş Modeli Yok (Tahmin Devre Dışı)';
   }
 
   String _describePoseAndExpression({
@@ -331,74 +314,98 @@ class FaceForensicsService {
 
   /// Extracts printable text strings & OSINT pivots (@handles, emails, phones, URLs, TR plates)
   /// from image binary metadata chunks (PNG tEXt/iTXt, JPEG XMP/Comment) & visual structure
-  (List<String> lines, List<String> pivots) _extractEmbeddedTextAndPivots(
-    Uint8List bytes,
-    img.Image decoded,
-  ) {
-    final lines = <String>{};
-    final pivots = <String>{};
+  /// Runs real on-device visual OCR (Google ML Kit Text Recognition on Android/iOS)
+  /// to extract actual visible text lines and parse OSINT pivots (emails, URLs,
+  /// @handles, TR phones, TR license plates). Never scans raw binary headers.
+  Future<(List<String> lines, List<String> pivots)> _extractVisualOcrAndPivots({
+    required Uint8List imageBytes,
+    String? filePath,
+  }) async {
+    final extractedLines = <String>[];
 
-    // Scan printable ASCII/UTF-8 runs of length >= 6 in first 64KB and last 32KB
-    final scanBuffers = <Uint8List>[
-      bytes.sublist(0, math.min(bytes.length, 65536)),
-      if (bytes.length > 65536)
-        bytes.sublist(math.max(0, bytes.length - 32768)),
-    ];
-
-    final emailReg = RegExp(r'[a-zA-Z0-9._%+-]{3,30}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,8}');
-    final urlReg = RegExp(r'https?://[a-zA-Z0-9./_-]{6,80}');
-    final handleReg = RegExp(r'@[a-zA-Z0-9_.]{3,24}');
-    final phoneReg = RegExp(r'(?:\+90|05)\d{9}\b');
-
-    for (final buf in scanBuffers) {
-      final sb = StringBuffer();
-      for (final b in buf) {
-        if (b >= 32 && b <= 126) {
-          sb.writeCharCode(b);
-        } else {
-          if (sb.length >= 6) {
-            final s = sb.toString().trim();
-            for (final m in emailReg.allMatches(s)) {
-              pivots.add('E-Posta: ${m.group(0)!}');
-            }
-            for (final m in urlReg.allMatches(s)) {
-              final u = m.group(0)!;
-              if (!u.contains('ns.adobe.com') && !u.contains('w3.org')) {
-                pivots.add('URL: $u');
-              }
-            }
-            for (final m in handleReg.allMatches(s)) {
-              pivots.add('Kullanıcı Adı: ${m.group(0)!}');
-            }
-            for (final m in phoneReg.allMatches(s)) {
-              pivots.add('Telefon: ${m.group(0)!}');
-            }
-            if (s.toLowerCase().contains('instagram') ||
-                s.toLowerCase().contains('whatsapp') ||
-                s.toLowerCase().contains('telegram') ||
-                s.toLowerCase().contains('screenshot') ||
-                s.toLowerCase().contains('ekran')) {
-              if (s.length <= 72) lines.add(s);
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      String? effectivePath = filePath;
+      File? tempFile;
+      TextRecognizer? recognizer;
+      try {
+        if (effectivePath == null ||
+            effectivePath.isEmpty ||
+            !File(effectivePath).existsSync()) {
+          final tempDir = Directory.systemTemp;
+          tempFile = File(
+            '${tempDir.path}${Platform.pathSeparator}panoptes_ocr_${DateTime.now().microsecondsSinceEpoch}.jpg',
+          );
+          await tempFile.writeAsBytes(imageBytes, flush: true);
+          effectivePath = tempFile.path;
+        }
+        final inputImage = InputImage.fromFilePath(effectivePath);
+        recognizer = TextRecognizer(script: TextRecognitionScript.latin);
+        final recognized = await recognizer.processImage(inputImage);
+        for (final block in recognized.blocks) {
+          for (final line in block.lines) {
+            final clean = line.text.trim();
+            if (clean.length >= 2 && clean.length <= 140) {
+              extractedLines.add(clean);
             }
           }
-          sb.clear();
+        }
+      } catch (_) {
+        // Ignore OCR engine failures cleanly without inventing fake lines
+      } finally {
+        await recognizer?.close();
+        if (tempFile != null && tempFile.existsSync()) {
+          try {
+            await tempFile.delete();
+          } catch (_) {}
         }
       }
     }
 
-    // Check aspect ratio for mobile screenshot signature (e.g. 9:19.5 / 9:20)
-    final ratio = decoded.height / math.max(1, decoded.width);
-    if (ratio >= 1.95 && ratio <= 2.35) {
-      lines.add(
-        'Ekran Görüntüsü (Screenshot) Oranı Tespit Edildi (${decoded.width}x${decoded.height} px — Oran 1:${ratio.toStringAsFixed(2)})',
-      );
-    } else {
-      lines.add(
-        'Portre / Kamera Kare Formatı (${decoded.width}x${decoded.height} px)',
-      );
+    final pivots = extractOcrPivotsFromLines(extractedLines);
+    return (extractedLines.take(12).toList(), pivots.take(10).toList());
+  }
+
+  /// Parses genuine OSINT pivots from recognized OCR text lines.
+  static List<String> extractOcrPivotsFromLines(List<String> lines) {
+    final pivots = <String>{};
+    final emailReg = RegExp(
+      r'[a-zA-Z0-9._%+-]{2,40}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,8}',
+    );
+    final urlReg = RegExp(r'https?://[a-zA-Z0-9./?=&_%-]{5,120}');
+    final handleReg = RegExp(r'(?:^|\s)(@[a-zA-Z0-9_.]{3,30})\b');
+    final phoneReg = RegExp(
+      r'(?:\+90|0)?\s*5\d{2}[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}\b',
+    );
+    final plateReg = RegExp(r'\b(0[1-9]|[1-7]\d|8[01])\s*[A-Z]{1,3}\s*\d{2,4}\b');
+
+    for (final raw in lines) {
+      final line = raw.trim();
+      if (line.isEmpty) continue;
+
+      for (final m in emailReg.allMatches(line)) {
+        pivots.add('E-Posta: ${m.group(0)!}');
+      }
+      for (final m in urlReg.allMatches(line)) {
+        pivots.add('URL: ${m.group(0)!}');
+      }
+      for (final m in handleReg.allMatches(line)) {
+        final handle = m.group(1);
+        if (handle != null && handle.isNotEmpty) {
+          pivots.add('Kullanıcı Adı: $handle');
+        }
+      }
+      for (final m in phoneReg.allMatches(line)) {
+        final normalized = m.group(0)!.replaceAll(RegExp(r'[\s.-]'), '');
+        if (normalized.length >= 10) {
+          pivots.add('Telefon: $normalized');
+        }
+      }
+      for (final m in plateReg.allMatches(line.toUpperCase())) {
+        pivots.add('TR Plaka: ${m.group(0)!.replaceAll(RegExp(r'\s+'), ' ')}');
+      }
     }
 
-    return (lines.take(6).toList(), pivots.take(8).toList());
+    return pivots.toList();
   }
 
   /// Extracts SHA-256 hash, MD5 hash, image dimensions, EXIF metadata, GPS coordinates, and privacy alerts

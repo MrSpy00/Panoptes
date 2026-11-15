@@ -9,12 +9,14 @@ import '../../../../core/theme/panoptes_theme.dart';
 class WebViewReconSheet extends StatefulWidget {
   final String initialUrl;
   final String title;
+  final Uint8List? targetImageBytes;
   final void Function(String imageUrl)? onVerifyCandidateImage;
 
   const WebViewReconSheet({
     super.key,
     required this.initialUrl,
     required this.title,
+    this.targetImageBytes,
     this.onVerifyCandidateImage,
   });
 
@@ -22,6 +24,7 @@ class WebViewReconSheet extends StatefulWidget {
     BuildContext context, {
     required String url,
     required String title,
+    Uint8List? targetImageBytes,
     void Function(String imageUrl)? onVerifyCandidateImage,
   }) async {
     final isMobileWebViewSupported =
@@ -49,6 +52,7 @@ class WebViewReconSheet extends StatefulWidget {
         child: WebViewReconSheet(
           initialUrl: url,
           title: title,
+          targetImageBytes: targetImageBytes,
           onVerifyCandidateImage: onVerifyCandidateImage,
         ),
       ),
@@ -66,6 +70,7 @@ class _WebViewReconSheetState extends State<WebViewReconSheet> {
   List<String> _capturedImages = const [];
   List<String> _capturedLinks = const [];
   bool _showCapturedDrawer = false;
+  String? _lastInjectedUrl;
 
   @override
   void initState() {
@@ -91,10 +96,56 @@ class _WebViewReconSheetState extends State<WebViewReconSheet> {
                 _currentUrl = url;
               });
             }
+            if (widget.targetImageBytes != null &&
+                _lastInjectedUrl != url &&
+                !url.contains('cbir_id=')) {
+              _injectTargetImageToWebView(silent: true);
+            }
           },
         ),
       )
       ..loadRequest(Uri.parse(widget.initialUrl));
+  }
+
+  Future<void> _injectTargetImageToWebView({bool silent = false}) async {
+    final bytes = widget.targetImageBytes;
+    if (bytes == null || bytes.isEmpty) return;
+    _lastInjectedUrl = _currentUrl;
+    try {
+      final b64 = base64Encode(bytes);
+      final js = '''
+      (function() {
+        try {
+          var b64 = '$b64';
+          var bin = atob(b64);
+          var arr = new Uint8Array(bin.length);
+          for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+          var file = new File([arr], 'target_photo.jpg', {type: 'image/jpeg'});
+          var dt = new DataTransfer();
+          dt.items.add(file);
+          var inputs = Array.from(document.querySelectorAll('input[type="file"]'));
+          if (inputs.length > 0) {
+            var inp = inputs[0];
+            inp.files = dt.files;
+            inp.dispatchEvent(new Event('change', {bubbles: true}));
+            return 'injected';
+          }
+          return 'no_input';
+        } catch (e) {
+          return 'err:' + e.message;
+        }
+      })();
+      ''';
+      final res = await _controller.runJavaScriptReturningResult(js);
+      if (!silent && mounted) {
+        final msg = res.toString().contains('injected')
+            ? 'Hedef fotoğraf arama motoruna gönderildi.'
+            : 'Bu sayfada otomatik yükleme alanı bulunamadı; kamera/dosya ikonunu kullanın.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg)),
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> _extractDomIntelligence() async {
@@ -230,6 +281,12 @@ class _WebViewReconSheetState extends State<WebViewReconSheet> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
+                if (widget.targetImageBytes != null)
+                  _QuickEngineChip(
+                    label: 'Fotoğrafı Yükle',
+                    active: false,
+                    onTap: () => _injectTargetImageToWebView(silent: false),
+                  ),
                 _QuickEngineChip(
                   label: 'DOM Yakala (${_capturedImages.length + _capturedLinks.length})',
                   active: _showCapturedDrawer,

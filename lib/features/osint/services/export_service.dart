@@ -20,7 +20,7 @@ class ExportService {
       ReportTemplate.legalKvkk => 'HUKUKİ / KVKK & ETİK UYUMLU RAPOR',
     };
 
-    buf.writeln('# PANOPTES v2.0 — AÇIK KAYNAK İSTİHBARAT (OSINT) DOSYASI');
+    buf.writeln('# PANOPTES v1.0 — AÇIK KAYNAK İSTİHBARAT (OSINT) DOSYASI');
     buf.writeln('**Rapor Şablonu:** `$templateLabel`');
     buf.writeln('- **Dosya ID:** `${session.id}` | **Çalışma Alanı:** `${t.workspaceName}`');
     buf.writeln('- **Oluşturulma Tarihi:** `${session.createdAt.toIso8601String()}`');
@@ -120,7 +120,7 @@ class ExportService {
     }
 
     buf.writeln('---');
-    buf.writeln('*Bu rapor Panoptes v2.0 On-Device OSINT Platformu tarafından üretilmiştir.*');
+    buf.writeln('*Bu rapor Panoptes v1.0 On-Device OSINT Platformu tarafından üretilmiştir.*');
     return buf.toString();
   }
 
@@ -147,7 +147,7 @@ class ExportService {
     buf.writeln('th{background:#181822;color:#E11D48;width:32%;}');
     buf.writeln('a{color:#FB7185;text-decoration:none;}a:hover{text-decoration:underline;}');
     buf.writeln('</style></head><body><div class="container">');
-    buf.writeln('<div class="header"><h1>PANOPTES v2.0 // OSINT DOSSIER</h1>');
+    buf.writeln('<div class="header"><h1>PANOPTES v1.0 // OSINT DOSSIER</h1>');
     buf.writeln('<div><strong>Hedef:</strong> ${_escapeHtml(t.displayLabel)} | <strong>Dosya ID:</strong> ${session.id} | <strong>Çalışma Alanı:</strong> ${_escapeHtml(t.workspaceName)}</div>');
     buf.writeln('<div><strong>Bulgular:</strong> ${session.findings.length} | <strong>Ortalama Güven:</strong> %${session.averageConfidence} | <strong>Tarih:</strong> ${session.createdAt.toIso8601String().substring(0, 16)}</div></div>');
 
@@ -192,7 +192,7 @@ class ExportService {
   }) async {
     final doc = pw.Document(
       title: 'Panoptes OSINT Dossier - ${session.target.displayLabel}',
-      author: 'Panoptes OSINT Engine v2.0',
+      author: 'Panoptes OSINT Engine v1.0',
     );
 
     final target = session.target;
@@ -215,7 +215,7 @@ class ExportService {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
-                  'PANOPTES v2.0 // OSINT DOSSIER (${template.name.toUpperCase()})',
+                  'PANOPTES v1.0 // OSINT DOSSIER (${template.name.toUpperCase()})',
                   style: pw.TextStyle(
                     color: PdfColor.fromInt(0xFFE11D48),
                     fontSize: 16,

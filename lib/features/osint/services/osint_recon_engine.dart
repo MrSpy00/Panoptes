@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import '../../../core/security/opsec_security_service.dart';
@@ -79,7 +80,7 @@ class OsintReconEngine {
       logs.add('[$ts] $msg');
     }
 
-    log('Panoptes v2.0 Çoklu-Kaynak OSINT Motoru başlatıldı — Hedef: ${target.displayLabel} [Çalışma Alanı: ${target.workspaceName}]');
+    log('Panoptes v1.0 Çoklu-Kaynak OSINT Motoru başlatıldı — Hedef: ${target.displayLabel} [Çalışma Alanı: ${target.workspaceName}]');
 
     // =========================================================================
     // 1. ON-DEVICE MULTI-FACE DETECTION, 192-D EMBEDDING, OCR & EXIF FORENSICS
@@ -142,7 +143,9 @@ class OsintReconEngine {
         );
       }
 
-      findings.addAll(_buildVisualAndReverseImageFindings(target, faceResult, exifReport));
+      findings.addAll(
+        await _buildVisualAndReverseImageFindings(target, faceResult, exifReport, log),
+      );
 
       if (exifReport.dateTimeOriginal != null && exifReport.dateTimeOriginal!.isNotEmpty) {
         timeline.add(
@@ -382,16 +385,55 @@ class OsintReconEngine {
   // ===========================================================================
   // VISUAL, BIOMETRIC, OCR & REVERSE IMAGE PIPELINE
   // ===========================================================================
-  List<OsintFinding> _buildVisualAndReverseImageFindings(
+  Future<String?> _uploadImageToYandexCbir(Uint8List imageBytes) async {
+    try {
+      final uri = Uri.parse(
+        'https://yandex.com.tr/images/search?rpt=imageview&format=json&request=%7B%22blocks%22%3A%5B%7B%22block%22%3A%22cbir-uploader__get-cbir-id%22%7D%5D%7D',
+      );
+      final req = http.MultipartRequest('POST', uri)
+        ..headers.addAll(_buildHeaders())
+        ..files.add(
+          http.MultipartFile.fromBytes(
+            'upfile',
+            imageBytes,
+            filename: 'query.jpg',
+          ),
+        );
+      final streamed = await req.send().timeout(const Duration(seconds: 8));
+      final body = await streamed.stream.bytesToString();
+      if (streamed.statusCode == 200 && body.isNotEmpty) {
+        final cbirMatch = RegExp(r'"cbirId"\s*:\s*"([^"]+)"').firstMatch(body) ??
+            RegExp(r'cbir_id=([A-Za-z0-9/_-]+)').firstMatch(body);
+        if (cbirMatch != null) {
+          final id = cbirMatch.group(1)!;
+          return 'https://yandex.com.tr/images/search?rpt=imageview&cbir_id=${Uri.encodeComponent(id)}';
+        }
+        final urlMatch = RegExp(r'"url"\s*:\s*"([^"]*rpt=imageview[^"]*)"').firstMatch(body);
+        if (urlMatch != null) {
+          final raw = urlMatch.group(1)!.replaceAll(r'\/', '/');
+          return raw.startsWith('http') ? raw : 'https://yandex.com.tr$raw';
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<OsintFinding>> _buildVisualAndReverseImageFindings(
     TargetProfile target,
     FaceAnalysisResult face,
     ExifForensicReport exif,
-  ) {
+    void Function(String) onLog,
+  ) async {
     final results = <OsintFinding>[];
-    final nameHint = target.fullName.isNotEmpty
-        ? target.fullName
-        : (target.username.isNotEmpty ? target.username : 'Hedef Görsel');
-    final encodedHint = Uri.encodeComponent(nameHint);
+    String? yandexCbirUrl;
+    if (target.photoBytes != null && target.photoBytes!.isNotEmpty) {
+      yandexCbirUrl = await _uploadImageToYandexCbir(target.photoBytes!);
+      if (yandexCbirUrl != null) {
+        onLog('Yandex CBIR görsel yükleme başarılı: gerçek fotoğraf indekslendi.');
+      } else {
+        onLog('Yandex CBIR doğrudan yanıt vermedi; WebView otomatik fotoğraf enjeksiyonu hazır.');
+      }
+    }
 
     final (bioScore, bioBreakdown) = computeWeightedScore(
       faceSimilarity: face.qualityScore,
@@ -410,13 +452,12 @@ class OsintReconEngine {
         category: OsintCategory.visualAndFace,
         url: 'https://developers.google.com/ml-kit/vision/face-detection',
         snippet:
-            'Tespit Edilen Yüz: ${face.faceCount} (Aktif Hedef: Yüz #${face.selectedFaceIndex + 1}) • Kalite: %${face.qualityScore} • Tahmini Yaş: ${face.estimatedAgeRange} • Poz: ${face.headPoseSummary} • İfade: ${face.expressionSummary}',
+            'Tespit Edilen Yüz: ${face.faceCount} (Aktif Hedef: Yüz #${face.selectedFaceIndex + 1}) • Kalite: %${face.qualityScore} • Poz: ${face.headPoseSummary} • İfade: ${face.expressionSummary}',
         extractedData: {
           'Algılama Motoru': face.detectionEngine,
           'Tespit Edilen Yüz Sayısı': '${face.faceCount} (Seçili: #${face.selectedFaceIndex + 1})',
           'Biyometrik Kalite Skoru': '%${face.qualityScore} — ${face.qualityRecommendation}',
-          'Tahmini Yaş & İfade': '${face.estimatedAgeRange} • ${face.expressionSummary}',
-          'Baş Açısı (Pose)': face.headPoseSummary,
+          'Baş Açısı & İfade': '${face.headPoseSummary} • ${face.expressionSummary}',
           '64-Bit dHash / aHash': '${face.dHashHex} / ${face.aHashHex}',
           '192-D Vektör (İlk 6 Boyut)':
               '[${face.embedding192d.take(6).map((e) => e.toStringAsFixed(3)).join(", ")}...]',
@@ -426,11 +467,11 @@ class OsintReconEngine {
         confidenceScore: bioScore,
         scoreBreakdown: bioBreakdown,
         faceSimilarityPercent: 100,
+        isLiveVerified: true,
         fallbackLayer: 'Birincil: On-Device Biyometrik Motor',
         tags: [
           '192-D Embedding',
           'dHash:${face.dHashHex}',
-          'Yaş:${face.estimatedAgeRange}',
           'Kalite:%${face.qualityScore}',
         ],
       ),
@@ -475,61 +516,68 @@ class OsintReconEngine {
       ),
     );
 
-    // 3. Parallel Reverse Image Search Engines (Yandex, Google Lens, Bing, TinEye, PimEyes/FaceCheck WebView)
+    // 3. Parallel Reverse Image Search Engines (Gerçek Fotoğraf CBIR / WebView Otomatik Yükleme)
     results.addAll([
       OsintFinding(
         id: 'vis_yandex_reverse',
-        title: 'Yandex Görsel & Yüz Benzerliği Arama Hattı (Öncelik #1)',
+        title: yandexCbirUrl != null
+            ? 'Yandex Görsel & Yüz Arama Sonucu Hazır (CBIR)'
+            : 'Yandex Görsel & Yüz Benzerliği Arama (Fotoğraf Enjeksiyonu)',
         sourceName: 'Yandex Images Visual Recon',
         category: OsintCategory.visualAndFace,
-        url: 'https://yandex.com.tr/images/search?text=$encodedHint&rpt=imageview',
-        snippet:
-            'Yüz tanıma ve Slav/Avrasya/Türkiye sosyal medya indekslemesinde en yüksek isabet oranına sahip ücretsiz tersine görsel motoru. Uygulama içi WebView ile görseli yükleyip bulunan aday URL\'leri Yüz Lab sekmesinde 192-D vektörle doğrulayın.',
+        url: yandexCbirUrl ?? 'https://yandex.com.tr/images/',
+        snippet: yandexCbirUrl != null
+            ? 'Hedef fotoğraf Yandex CBIR sunucusuna yüklendi. Uygulama içi WebView ile doğrudan görsel ve yüz eşleşmelerini açıp 192-D vektörle doğrulayın.'
+            : 'Uygulama içi WebView açıldığında hedef fotoğraf otomatik olarak Yandex Görsel arama kutusuna yüklenir (isim araması yapılmaz).',
         extractedData: {
-          'Öncelikli Motor': 'Yandex Visual Face Recognition',
-          'Hedef Sorgu İpucu': nameHint,
+          'Arama Modu': yandexCbirUrl != null
+              ? 'Doğrudan Fotoğraf CBIR Upload'
+              : 'WebView Otomatik Fotoğraf Yükleme',
           'Hedef dHash64': face.dHashHex,
           'Doğrulama Yöntemi': 'Uygulama İçi WebView + 192-D Kosinüs Benzerliği',
         },
-        confidenceScore: 91,
-        scoreBreakdown: 'Görsel Motor Gücü %95 • Bölgesel Kapsama (TR/Avrasya) %92',
-        fallbackLayer: 'WebView + On-Device 192-D Doğrulama',
-        tags: const ['Yandex Images', 'Yüz Arama', 'Tersine Görsel'],
+        confidenceScore: yandexCbirUrl != null ? 92 : 78,
+        scoreBreakdown: 'Görsel Tabanlı CBIR Arama • İsimsiz Fotoğraf Sorgusu',
+        isLiveVerified: yandexCbirUrl != null,
+        fallbackLayer: yandexCbirUrl != null
+            ? 'Birincil: Yandex CBIR Multipart Upload'
+            : 'Fallback: WebView DataTransfer Fotoğraf Enjeksiyonu',
+        tags: const ['Yandex Images', 'Gerçek Fotoğraf Arama', 'Tersine Görsel'],
       ),
       OsintFinding(
         id: 'vis_google_lens',
-        title: 'Google Lens & Görsel Bağlam / Nesne / Mekan Taraması',
+        title: 'Google Lens / Görsel Arama (Fotoğraf Yükleme)',
         sourceName: 'Google Lens Recon',
         category: OsintCategory.visualAndFace,
-        url: 'https://www.google.com/search?tbm=isch&q=$encodedHint',
+        url: 'https://images.google.com/',
         snippet:
-            'Fotoğraftaki arka plan mimarisi, tabela, kıyafet ve haber/blog kopyalarını tespit etmek için Google Görsel & Lens arama hattı.',
+            'Uygulama içi WebView açıldığında hedef fotoğraf Google Görsel / Lens yükleme alanına gönderilir; mekan, nesne ve web kopyalarını tarar.',
         extractedData: {
           'Arama Motoru': 'Google Lens / Google Images',
           'Odak Alanı': 'Mekan, Tabela, Kıyafet ve Web Kopyası Tespiti',
-          'Sorgu Parametresi': nameHint,
+          'Arama Modu': 'Görsel Dosya Enjeksiyonu (İsim Metni Kullanılmaz)',
         },
-        confidenceScore: 87,
-        scoreBreakdown: 'Global Web İndeksi %94 • Görsel Bağlam %85',
-        fallbackLayer: 'WebView + Görsel Kopya Taraması',
-        tags: const ['Google Lens', 'Mekan Tespiti', 'Görsel Bağlam'],
+        confidenceScore: 76,
+        scoreBreakdown: 'Global Web İndeksi • Görsel Yükleme Modu',
+        fallbackLayer: 'WebView + Fotoğraf Yükleme',
+        tags: const ['Google Lens', 'Gerçek Fotoğraf Arama'],
       ),
       OsintFinding(
         id: 'vis_bing_tineye',
-        title: 'Bing Visual Search & TinEye Kopya Değişim Takibi',
+        title: 'Bing Visual Search & TinEye (Fotoğraf Yükleme)',
         sourceName: 'Bing Visual / TinEye',
         category: OsintCategory.visualAndFace,
-        url: 'https://www.bing.com/images/search?q=$encodedHint&FORM=HDRSC2',
+        url: 'https://www.bing.com/visualsearch',
         snippet:
-            'Profil fotoğrafının kırpılmış, filtrelenmiş veya eski yıllarda farklı forumlarda kullanılmış kopyalarını bulmak için çapraz arama vektörü.',
+            'Kırpılmış veya eski yıllarda farklı sitelerde kullanılmış görsel kopyaları bulmak için doğrudan fotoğraf yüklemeli çapraz görsel arama.',
         extractedData: {
-          'Motorlar': 'Bing Visual Search + TinEye Exact Match',
+          'Motorlar': 'Bing Visual Search + TinEye',
           'Kırpılmış Kopya Algılama': 'Aktif (dHash: ${face.dHashHex})',
         },
-        confidenceScore: 83,
-        scoreBreakdown: 'Kopya Tespiti %85 • Arşiv Derinliği %80',
-        fallbackLayer: 'İkincil: Çoklu Motor Tersine Görsel',
-        tags: const ['Bing Visual', 'TinEye', 'Profil Fotoğrafı'],
+        confidenceScore: 72,
+        scoreBreakdown: 'Görsel Kopya Tespiti • Doğrudan Fotoğraf Yükleme',
+        fallbackLayer: 'WebView + Fotoğraf Yükleme',
+        tags: const ['Bing Visual', 'TinEye', 'Gerçek Fotoğraf Arama'],
       ),
     ]);
 
@@ -591,6 +639,9 @@ class OsintReconEngine {
       _probeChessCom(cleanHandle, target, rotateUa, onLog, onFact, onTimeline),
       _probeLichess(cleanHandle, target, rotateUa, onLog, onFact, onTimeline),
       _probeCratesIo(cleanHandle, target, rotateUa, onLog, onFact),
+      _probeSteamLive(cleanHandle, target, rotateUa, onLog, onFact),
+      _probeBlueskyLive(cleanHandle, target, rotateUa, onLog, onFact),
+      _probeLinktreeLive(cleanHandle, target, rotateUa, onLog, onFact),
       _probeWikipediaTr(cleanHandle, target, rotateUa, onLog),
     ];
 
@@ -607,76 +658,61 @@ class OsintReconEngine {
     results.addAll([
       OsintFinding(
         id: 'soc_linkedin_$cleanHandle',
-        title: 'LinkedIn Profesyonel Profil & Kariyer Geçmişi: $fullNameOrHandle',
-        sourceName: 'LinkedIn Public Index',
+        title: 'LinkedIn Manuel Arama Linki: $fullNameOrHandle',
+        sourceName: 'LinkedIn Manuel Dork',
         category: OsintCategory.usernameAndSocial,
         url:
             'https://www.google.com/search?q=${Uri.encodeComponent('site:linkedin.com/in ("$fullNameOrHandle" OR "$cleanHandle")$cityQuery$orgQuery')}',
         snippet:
-            'LinkedIn açık profil, deneyim, eğitim ve kurum bağlantılarını hedefleyen çapraz arama: site:linkedin.com/in ("$fullNameOrHandle" OR "$cleanHandle")$cityQuery$orgQuery',
+            'LinkedIn doğrudan API/oturumsuz profil doğrulamasına izin vermediği için manuel tarayıcı kontrol linki üretildi: site:linkedin.com/in ("$fullNameOrHandle" OR "$cleanHandle")$cityQuery$orgQuery',
         extractedData: {
           'Hedef İsim / Handle': '$fullNameOrHandle (@$cleanHandle)',
           if (target.cityOrHometown.isNotEmpty) 'Konum Filtresi': target.cityOrHometown,
           if (target.occupationOrOrg.isNotEmpty) 'Kurum / Okul Filtresi': target.occupationOrOrg,
-          'Arama Vektörü': 'site:linkedin.com/in',
+          'Doğrulama Durumu': 'Doğrulanmadı (Manuel Kontrol Linki)',
         },
-        confidenceScore: target.occupationOrOrg.isNotEmpty ? 90 : 81,
-        scoreBreakdown: 'İsim %42 (88) • Kurum/Konum %33 (86) • Kaynak %25 (90)',
-        fallbackLayer: 'Google/Yandex Dork + WebView İnceleme',
-        tags: const ['LinkedIn', 'Kariyer', 'Kurumsal OSINT'],
+        confidenceScore: 42,
+        scoreBreakdown: 'Manuel Arama Linki • Canlı Doğrulama Yok',
+        isLiveVerified: false,
+        fallbackLayer: 'Manuel Dork / WebView Kontrolü',
+        tags: const ['Manuel Kontrol', 'LinkedIn'],
       ),
       OsintFinding(
         id: 'soc_x_twitter_$cleanHandle',
-        title: 'X (Twitter) Açık Profil, Gönderi & Yanıt Arşivi (@$cleanHandle)',
-        sourceName: 'X / Twitter Recon',
+        title: 'X (Twitter) Manuel Profil Linki (@$cleanHandle)',
+        sourceName: 'X / Twitter Manuel Kontrol',
         category: OsintCategory.usernameAndSocial,
         url: 'https://x.com/$cleanHandle',
         snippet:
-            'Doğrudan @$cleanHandle profili ve geçmiş tweet/mention arşivi: site:x.com "$cleanHandle" OR "$fullNameOrHandle"',
+            'X/Twitter oturum duvarı arkasında olduğu için doğrudan varlık doğrulanamadı. WebView üzerinden manuel kontrol: https://x.com/$cleanHandle',
         extractedData: {
-          'Doğrudan Profil URL': 'https://x.com/$cleanHandle',
-          'Alternatif Varyasyonlar': allHandles.take(4).map((e) => '@$e').join(', '),
+          'Kontrol Edilecek URL': 'https://x.com/$cleanHandle',
           'Wayback Arşivi': 'https://web.archive.org/web/*/https://twitter.com/$cleanHandle',
+          'Doğrulama Durumu': 'Doğrulanmadı (Manuel Kontrol)',
         },
-        confidenceScore: 84,
-        scoreBreakdown: 'Kullanıcı Adı Eşleşmesi %85 • Sosyal Ağ İndeksi %82',
-        fallbackLayer: 'Doğrudan Profil + Wayback Arşiv',
-        tags: ['@$cleanHandle', 'X/Twitter', 'Sosyal Medya'],
+        confidenceScore: 38,
+        scoreBreakdown: 'Manuel Profil Linki • Canlı Doğrulama Yok',
+        isLiveVerified: false,
+        fallbackLayer: 'Manuel WebView + Wayback Arşiv',
+        tags: ['Manuel Kontrol', '@$cleanHandle', 'X/Twitter'],
       ),
       OsintFinding(
         id: 'soc_instagram_$cleanHandle',
-        title: 'Instagram Açık Profil, Etiketlenen Gönderiler & Bio (@$cleanHandle)',
-        sourceName: 'Instagram OSINT',
+        title: 'Instagram Manuel Profil Linki (@$cleanHandle)',
+        sourceName: 'Instagram Manuel Kontrol',
         category: OsintCategory.usernameAndSocial,
         url: 'https://www.instagram.com/$cleanHandle/',
         snippet:
-            'Instagram @$cleanHandle profili, bio içindeki link/konum bilgileri ve diğer kullanıcıların etiketlediği (tagged) açık gönderiler.',
+            'Instagram oturumsuz HTTP kontrolüne kapalıdır; hesabın varlığını doğrulamak için WebView ile açın.',
         extractedData: {
-          'Doğrudan Profil URL': 'https://www.instagram.com/$cleanHandle/',
-          'Dork Sorgusu': 'site:instagram.com "$cleanHandle" OR "$fullNameOrHandle"',
+          'Kontrol Edilecek URL': 'https://www.instagram.com/$cleanHandle/',
+          'Doğrulama Durumu': 'Doğrulanmadı (Manuel Kontrol)',
         },
-        confidenceScore: 83,
-        scoreBreakdown: 'Kullanıcı Adı %84 • Görsel/Sosyal İndeks %82',
-        fallbackLayer: 'Doğrudan URL + Dork Fallback',
-        tags: ['@$cleanHandle', 'Instagram', 'Görsel Profil'],
-      ),
-      OsintFinding(
-        id: 'soc_steam_gaming_$cleanHandle',
-        title: 'Steam, Discord, Kick & Oyuncu Toplulukları İzi (@$cleanHandle)',
-        sourceName: 'Steam & Gaming Recon',
-        category: OsintCategory.usernameAndSocial,
-        url: 'https://steamcommunity.com/id/$cleanHandle',
-        snippet:
-            'Steam custom URL (steamcommunity.com/id/$cleanHandle), eski nick geçmişi (alias history), arkadaş listesi ve oyun toplulukları korelasyonu.',
-        extractedData: {
-          'Steam Custom URL': 'https://steamcommunity.com/id/$cleanHandle',
-          'Kapsanan Platformlar': 'Steam, Discord, Twitch, Kick, AniList, MyAnimeList',
-          'Önemli İpucu': 'Steam profilindeki "Daha önce kullandığı isimler" (Aliases) listesini kontrol edin.',
-        },
-        confidenceScore: 79,
-        scoreBreakdown: 'Oyuncu Nick Korelasyonu %80 • Alias Potansiyeli %78',
-        fallbackLayer: 'Doğrudan Steam Community URL + Dork',
-        tags: const ['Steam', 'Gaming OSINT', 'Alias Geçmişi'],
+        confidenceScore: 38,
+        scoreBreakdown: 'Manuel Profil Linki • Canlı Doğrulama Yok',
+        isLiveVerified: false,
+        fallbackLayer: 'Manuel WebView Kontrolü',
+        tags: ['Manuel Kontrol', '@$cleanHandle', 'Instagram'],
       ),
     ]);
 
@@ -1534,6 +1570,143 @@ class OsintReconEngine {
     return null;
   }
 
+  Future<OsintFinding?> _probeSteamLive(
+    String handle,
+    TargetProfile target,
+    bool rotateUa,
+    void Function(String) onLog,
+    void Function(String) onFact,
+  ) async {
+    try {
+      final uri = Uri.parse('https://steamcommunity.com/id/$handle');
+      final resp = await _httpClient
+          .get(uri, headers: _buildHeaders(rotateUa: rotateUa))
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200 && resp.body.isNotEmpty) {
+        final html = resp.body;
+        if (html.contains('The specified profile could not be found') ||
+            html.contains('g_rgProfileData') == false) {
+          return null;
+        }
+        final personaMatch =
+            RegExp(r'"personaname"\s*:\s*"([^"]+)"').firstMatch(html);
+        final personaName = personaMatch?.group(1)?.trim() ?? handle;
+        onLog('Steam Canlı Profil BULUNDU: $personaName (id/$handle)');
+        onFact('CANLI STEAM PROFİLİ: $personaName (steamcommunity.com/id/$handle)');
+        return OsintFinding(
+          id: 'live_steam_$handle',
+          title: 'Steam Profili Doğrulandı: $personaName (@$handle)',
+          sourceName: 'Steam Community (Canlı)',
+          category: OsintCategory.usernameAndSocial,
+          url: 'https://steamcommunity.com/id/$handle',
+          snippet: 'Steam Community profili doğrulandı: "$personaName" (id/$handle).',
+          extractedData: {
+            'Görünen İsim (Persona)': personaName,
+            'Custom ID': handle,
+            'Doğrudan Profil': 'https://steamcommunity.com/id/$handle',
+          },
+          confidenceScore: 91,
+          scoreBreakdown: 'Canlı Steam Community g_rgProfileData Doğrulaması',
+          isLiveVerified: true,
+          fallbackLayer: 'Birincil: Canlı Steam Community HTML Parser',
+          tags: const ['Canlı Doğrulandı', 'Steam', 'Gaming OSINT'],
+        );
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<OsintFinding?> _probeBlueskyLive(
+    String handle,
+    TargetProfile target,
+    bool rotateUa,
+    void Function(String) onLog,
+    void Function(String) onFact,
+  ) async {
+    try {
+      final actor = handle.contains('.') ? handle : '$handle.bsky.social';
+      final uri = Uri.parse(
+        'https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${Uri.encodeComponent(actor)}',
+      );
+      final resp = await _httpClient
+          .get(uri, headers: _buildHeaders(rotateUa: rotateUa))
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final displayName = (data['displayName'] ?? actor).toString();
+        final description = (data['description'] ?? '').toString().trim();
+        final followers = data['followersCount'] ?? 0;
+        final posts = data['postsCount'] ?? 0;
+        onLog('Bluesky Canlı Profil BULUNDU: @$actor ($displayName)');
+        onFact('CANLI BLUESKY PROFİLİ: @$actor ($displayName) • $posts gönderi');
+        return OsintFinding(
+          id: 'live_bluesky_$handle',
+          title: 'Bluesky Profili Doğrulandı: $displayName (@$actor)',
+          sourceName: 'Bluesky Public API (Canlı)',
+          category: OsintCategory.usernameAndSocial,
+          url: 'https://bsky.app/profile/$actor',
+          snippet:
+              'Bluesky hesabı doğrulandı: "$displayName" • $followers takipçi • $posts gönderi${description.isNotEmpty ? " • Bio: $description" : ""}',
+          extractedData: {
+            'Handle': '@$actor',
+            'Görünen Ad': displayName,
+            if (description.isNotEmpty) 'Biyografi': description,
+            'Takipçi / Gönderi': '$followers takipçi / $posts gönderi',
+          },
+          confidenceScore: 92,
+          scoreBreakdown: 'Canlı Bluesky XRPC API Doğrulaması',
+          isLiveVerified: true,
+          fallbackLayer: 'Birincil: Bluesky Public XRPC API',
+          tags: const ['Canlı Doğrulandı', 'Bluesky', 'Sosyal Medya'],
+        );
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<OsintFinding?> _probeLinktreeLive(
+    String handle,
+    TargetProfile target,
+    bool rotateUa,
+    void Function(String) onLog,
+    void Function(String) onFact,
+  ) async {
+    try {
+      final uri = Uri.parse('https://linktr.ee/$handle');
+      final resp = await _httpClient
+          .get(uri, headers: _buildHeaders(rotateUa: rotateUa))
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200 &&
+          resp.body.isNotEmpty &&
+          !resp.body.contains('The page you’re looking for doesn’t exist') &&
+          !resp.body.contains("page you're looking for doesn't exist")) {
+        final titleMatch =
+            RegExp(r'<meta property="og:title" content="([^"]+)"').firstMatch(resp.body);
+        final ogTitle = titleMatch?.group(1)?.trim() ?? '@$handle';
+        onLog('Linktree Canlı Profil BULUNDU: linktr.ee/$handle ($ogTitle)');
+        onFact('CANLI LINKTREE PROFİLİ: linktr.ee/$handle ($ogTitle)');
+        return OsintFinding(
+          id: 'live_linktree_$handle',
+          title: 'Linktree Bağlantı Merkezi Doğrulandı: $ogTitle',
+          sourceName: 'Linktree (Canlı)',
+          category: OsintCategory.usernameAndSocial,
+          url: 'https://linktr.ee/$handle',
+          snippet: 'Linktree profili aktif: https://linktr.ee/$handle ($ogTitle)',
+          extractedData: {
+            'Linktree Başlığı': ogTitle,
+            'Profil URL': 'https://linktr.ee/$handle',
+          },
+          confidenceScore: 90,
+          scoreBreakdown: 'Canlı Linktree HTTP 200 + OpenGraph Doğrulaması',
+          isLiveVerified: true,
+          fallbackLayer: 'Birincil: Canlı Linktree HTML Parser',
+          tags: const ['Canlı Doğrulandı', 'Linktree', 'Link Aggregator'],
+        );
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<OsintFinding?> _probeWikipediaTr(
     String handle,
     TargetProfile target,
@@ -1541,6 +1714,12 @@ class OsintReconEngine {
     void Function(String) onLog,
   ) async {
     final query = target.fullName.isNotEmpty ? target.fullName : handle;
+    final queryTokens = query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((t) => t.length >= 3)
+        .toList();
+    if (queryTokens.isEmpty) return null;
     try {
       final uri = Uri.parse(
         'https://tr.wikipedia.org/w/api.php?action=query&list=search&srsearch=${Uri.encodeComponent(query)}&format=json&origin=*',
@@ -1557,6 +1736,9 @@ class OsintReconEngine {
           final snippet = (first['snippet'] ?? '')
               .toString()
               .replaceAll(RegExp(r'<[^>]*>'), '');
+          final combined = '${title.toLowerCase()} ${snippet.toLowerCase()}';
+          final allTokensMatch = queryTokens.every((tok) => combined.contains(tok));
+          if (!allTokensMatch) return null;
           onLog('Wikipedia TR eşleşmesi bulundu: $title');
           return OsintFinding(
             id: 'live_wikitr_${title.hashCode}',
@@ -1570,8 +1752,8 @@ class OsintReconEngine {
               'Aranan İfade': query,
               'Ansiklopedik Özet': snippet,
             },
-            confidenceScore: 80,
-            scoreBreakdown: 'MediaWiki API Eşleşmesi %82 • İsim %78',
+            confidenceScore: 84,
+            scoreBreakdown: 'MediaWiki API Tam Terim Eşleşmesi',
             isLiveVerified: true,
             fallbackLayer: 'Birincil: Canlı MediaWiki API',
             tags: const ['Wikipedia TR', 'Ansiklopedik Kayıt'],
