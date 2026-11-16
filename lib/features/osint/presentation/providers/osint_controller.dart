@@ -309,7 +309,7 @@ class PanoptesNotifier extends StateNotifier<PanoptesState> {
       birthOrAge: '1998 (26-30)',
       cityOrHometown: 'İstanbul / Kars',
       username: 'MrSpy00',
-      email: 'security@aegissoft.com.tr',
+      email: 'aegissoft0@gmail.com',
       phone: '+90 532 410 00 00',
       occupationOrOrg: 'aegisSoft Offensive Security & OSINT Lab',
       notes: 'Red Team, OSINT, Rust/Flutter/TypeScript, Türkiye Siber Güvenlik Araştırmaları',
