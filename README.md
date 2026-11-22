@@ -25,6 +25,10 @@
 
 </div>
 
+> **YASAL VE ETİK UYARI (KVKK / GDPR):** Panoptes yalnızca **eğitim, siber güvenlik araştırması ve açık kaynaklı kendi veriniz üzerinde test** amacıyla geliştirilmiş bir prototiptir. Biyometrik veri (yüz embedding) işleme ve kamu/kişisel kayıtları çapraz sorgulama faaliyetleri Türkiye'de **6698 sayılı KVKK** ve uluslararası **GDPR** kapsamında açık hukuki yükümlülükler doğurur. Üçüncü kişilerin kişisel/biyometrik verilerini açık rıza ve yasal dayanak olmadan toplamak, eşleştirmek veya saklamak hukuka aykırıdır; yalnızca kendi hesabınız veya yetkili/izinli test verileriyle kullanın.
+>
+> *Legal & Ethical Notice: Panoptes is an educational and security research prototype. Biometric processing and cross-referencing personal records carry strict legal obligations under KVKK and GDPR. Use only with your own data or explicitly authorized test datasets.*
+
 ---
 
 # <img src="assets/branding/flag_tr.svg" alt="TR" width="28" valign="middle" /> Türkçe Dokümantasyon
@@ -141,7 +145,7 @@ The custom-crafted **9-eye geometric SVG emblem** ([`assets/branding/panoptes_lo
 - A central sharp geometric eye with a **Crimson-Burgundy (`#E11D48` / `#9F1239`)** iris ring and vertical slit pupil,
 - **8 surrounding geometric satellite eyes** at varied scales, opacities, and gaze vectors.
 
-**Objective:** Deliver the deepest possible public Open-Source Intelligence (OSINT) and biometric face verification mobile platform that runs **100% standalone on-device (Edge / Offline-First)** with **zero paid APIs**, parallel multi-source cross-querying, and enterprise-grade OPSEC hardening.
+**Objective:** Run public Open-Source Intelligence (OSINT) lookups and on-device biometric face matching **locally on-device (Edge / Offline-First)** with **zero paid APIs**, parallel cross-querying, and local encrypted storage.
 
 ---
 
